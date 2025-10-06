@@ -72,7 +72,7 @@ export default function Dashboard() {
               </div>
               <div className="text-sm">
                 <span className="font-medium">Account ID:</span> 
-                <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
+                <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{user?.account_id}</code>
               </div>
               <div className="text-sm">
                 <span className="font-medium">Last Login:</span> 

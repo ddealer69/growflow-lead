@@ -35,10 +35,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const storedUser = localStorage.getItem('user');
         const storedAccountId = localStorage.getItem('account_id');
+        
         if (storedUser) {
           const userData = JSON.parse(storedUser);
           setUser(userData);
-          setAccountId(storedAccountId);
+          setAccountId(storedAccountId || userData.account_id);
         }
       } catch (error) {
         console.error('Error parsing stored user data:', error);
