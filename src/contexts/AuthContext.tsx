@@ -1,13 +1,22 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { API_CONFIG } from "@/config/api";
+
+interface User {
+  id: string;
+  account_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  last_login: string | null;
+  is_active: boolean;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
+  accountId: string | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, accountName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   loading: boolean;
 }
@@ -16,62 +25,100 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    // Check for existing user data in localStorage
+    const checkExistingAuth = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        const storedAccountId = localStorage.getItem('account_id');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setAccountId(storedAccountId);
+        }
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('user');
+        localStorage.removeItem('account_id');
+      } finally {
         setLoading(false);
       }
-    );
+    };
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    checkExistingAuth();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setUser(data.user);
+        setAccountId(data.user.account_id);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('account_id', data.user.account_id);
+        return { error: null };
+      } else {
+        return { error: { message: data.message || "Failed to sign in" } };
+      }
+    } catch (error) {
+      return { error: { message: "Network error. Please try again." } };
+    }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
+  const signUp = async (email: string, password: string, fullName: string, accountName: string) => {
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SIGNUP}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      },
-    });
-    return { error };
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: fullName,
+          account_name: accountName
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return { error: null };
+      } else {
+        return { error: { message: data.message || "Failed to create account" } };
+      }
+    } catch (error) {
+      return { error: { message: "Network error. Please try again." } };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    setUser(null);
+    setAccountId(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('account_id');
     navigate("/auth");
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, session, signIn, signUp, signOut, loading }}
+      value={{ user, accountId, signIn, signUp, signOut, loading }}
     >
       {children}
     </AuthContext.Provider>

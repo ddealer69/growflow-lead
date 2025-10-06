@@ -12,6 +12,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -43,7 +44,7 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !accountName) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -54,14 +55,23 @@ export default function Auth() {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password, fullName);
+    const { error } = await signUp(email, password, fullName, accountName);
     setLoading(false);
 
     if (error) {
       toast.error(error.message || "Failed to sign up");
     } else {
-      toast.success("Account created successfully!");
-      navigate("/");
+      toast.success("Account created successfully! Please sign in with your credentials.");
+      // Clear signup form and switch to signin tab
+      setEmail("");
+      setPassword("");
+      setFullName("");
+      setAccountName("");
+      // Switch to signin tab programmatically
+      const signinTab = document.querySelector('[value="signin"]') as HTMLElement;
+      if (signinTab) {
+        signinTab.click();
+      }
     }
   };
 
@@ -118,6 +128,17 @@ export default function Auth() {
                     placeholder="John Doe"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-account">Account Name</Label>
+                  <Input
+                    id="signup-account"
+                    type="text"
+                    placeholder="Your Company Name"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
                     required
                   />
                 </div>
