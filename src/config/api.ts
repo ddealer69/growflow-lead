@@ -4,6 +4,8 @@ export const API_CONFIG = {
   ENDPOINTS: {
     SIGNUP: "/auth/signup",
     LOGIN: "/auth/login",
-    COMPANIES: "/companies"
+    COMPANIES: "/companies",
+    SMTP_CREDENTIALS: "/smtp-credentials",
+    ACCOUNTS: "/accounts"
   }
 };
