@@ -28,6 +28,23 @@ interface Company {
   updated_at: string;
 }
 
+interface Banner {
+  id: string;
+  company_id: string;
+  name: string;
+  logo_url: string | null;
+  signature: string | null;
+  metadata: {
+    purpose?: string;
+    department?: string;
+    [key: string]: any;
+  } | null;
+  created_by: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Companies() {
   const { accountId, user } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -45,7 +62,24 @@ export default function Companies() {
     size: "",
     location: "",
   });
+  
+  // Banner management state
+  const [bannerOpen, setBannerOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [bannerFormData, setBannerFormData] = useState({
+    name: "",
+    logo_url: "",
+    signature: "",
+    purpose: "",
+    department: "",
+  });
+  const [companyBanners, setCompanyBanners] = useState<{[key: string]: Banner[]}>({});
+  
   const navigate = useNavigate();
+
+  // Use the user ID from AuthContext instead of fetching from Supabase
+  const userId = user?.id;
 
   useEffect(() => {
     if (currentAccountId) {
@@ -55,6 +89,31 @@ export default function Companies() {
       setLoading(false);
     }
   }, [currentAccountId]);
+
+  useEffect(() => {
+    // Load banners for all companies when companies are loaded
+    async function loadAllBanners() {
+      const bannerPromises = companies.map(async (company) => {
+        const banners = await fetchCompanyBanners(company.id);
+        return { companyId: company.id, banners };
+      });
+      
+      const results = await Promise.all(bannerPromises);
+      const bannerMap: {[key: string]: Banner[]} = {};
+      
+      results.forEach(({ companyId, banners }) => {
+        bannerMap[companyId] = banners;
+      });
+      
+      setCompanyBanners(bannerMap);
+    }
+    
+    if (companies.length > 0) {
+      loadAllBanners();
+    }
+  }, [companies]);
+
+
 
   async function loadCompanies() {
     if (!currentAccountId) {
@@ -251,6 +310,126 @@ export default function Companies() {
     }
   }
 
+  async function fetchCompanyBanners(companyId: string): Promise<Banner[]> {
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/companies/${companyId}/banners`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.banners || [];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error('Fetch company banners error:', error);
+      return [];
+    }
+  }
+
+  async function handleBannerAction(company: Company) {
+    setSelectedCompany(company);
+    
+    // Fetch existing banners for this company
+    const banners = await fetchCompanyBanners(company.id);
+    setCompanyBanners(prev => ({ ...prev, [company.id]: banners }));
+    
+    if (banners.length > 0) {
+      // If banner exists, set up for editing
+      const existingBanner = banners[0]; // Assuming one banner per company
+      setEditingBanner(existingBanner);
+      setBannerFormData({
+        name: existingBanner.name,
+        logo_url: existingBanner.logo_url || "",
+        signature: existingBanner.signature || "",
+        purpose: existingBanner.metadata?.purpose || "",
+        department: existingBanner.metadata?.department || "",
+      });
+    } else {
+      // Reset form for creating new banner
+      setEditingBanner(null);
+      setBannerFormData({
+        name: `${company.name} - Banner`,
+        logo_url: "",
+        signature: "",
+        purpose: "",
+        department: "",
+      });
+    }
+    
+    setBannerOpen(true);
+  }
+
+  async function handleBannerSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
+    if (!selectedCompany || !userId) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    try {
+      const payload = {
+        company_id: selectedCompany.id,
+        name: bannerFormData.name,
+        logo_url: bannerFormData.logo_url || null,
+        signature: bannerFormData.signature || null,
+        metadata: {
+          purpose: bannerFormData.purpose || null,
+          department: bannerFormData.department || null,
+        },
+        created_by: userId,
+      };
+
+      const url = editingBanner 
+        ? `${API_CONFIG.BASE_URL}/company-banners/${editingBanner.id}`
+        : `${API_CONFIG.BASE_URL}/company-banners`;
+      
+      const method = editingBanner ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`Banner ${editingBanner ? 'updated' : 'created'} successfully`);
+        setBannerOpen(false);
+        setSelectedCompany(null);
+        setEditingBanner(null);
+        
+        // Refresh the banners for this company
+        const updatedBanners = await fetchCompanyBanners(selectedCompany.id);
+        setCompanyBanners(prev => ({ ...prev, [selectedCompany.id]: updatedBanners }));
+      } else {
+        toast.error(data.message || `Failed to ${editingBanner ? 'update' : 'create'} banner`);
+      }
+    } catch (error) {
+      toast.error("Network error. Please try again.");
+      console.error('Banner operation error:', error);
+    }
+  }
+
+  function resetBannerForm() {
+    setBannerFormData({
+      name: "",
+      logo_url: "",
+      signature: "",
+      purpose: "",
+      department: "",
+    });
+  }
+
   if (loading) {
     return <div className="text-muted-foreground">Loading...</div>;
   }
@@ -439,6 +618,156 @@ export default function Companies() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Banner Management Dialog */}
+        <Dialog open={bannerOpen} onOpenChange={(isOpen) => {
+          setBannerOpen(isOpen);
+          if (!isOpen) {
+            setSelectedCompany(null);
+            setEditingBanner(null);
+            resetBannerForm();
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <form onSubmit={handleBannerSubmit}>
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-xl">
+                  {editingBanner ? 'Update Company Banner' : 'Create Company Banner'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingBanner 
+                    ? 'Update your company banner information' 
+                    : 'Create a new banner for your company'
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
+                {/* Company and User Info Display */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Company</Label>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-medium">{selectedCompany?.name}</div>
+                      <code className="text-xs text-muted-foreground">
+                        ID: {selectedCompany?.id}
+                      </code>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Label className="text-sm font-medium">Created By</Label>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-sm">{user?.full_name}</div>
+                      <code className="text-xs text-muted-foreground">
+                        ID: {userId || 'Loading...'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Banner Information</h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="banner-name" className="text-sm font-medium">
+                        Banner Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="banner-name"
+                        placeholder="Enter banner name"
+                        value={bannerFormData.name}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, name: e.target.value })}
+                        required
+                        className="h-10"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="logo-url" className="text-sm font-medium">Logo URL</Label>
+                      <Input
+                        id="logo-url"
+                        placeholder="https://example.com/logo.png"
+                        value={bannerFormData.logo_url}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, logo_url: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Details */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Banner Details</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="purpose" className="text-sm font-medium">Purpose</Label>
+                      <Input
+                        id="purpose"
+                        placeholder="e.g., Sales campaigns"
+                        value={bannerFormData.purpose}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, purpose: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department" className="text-sm font-medium">Department</Label>
+                      <Input
+                        id="department"
+                        placeholder="e.g., Sales"
+                        value={bannerFormData.department}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, department: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Signature */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Email Signature</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="signature" className="text-sm font-medium">Signature Template</Label>
+                    <Textarea
+                      id="signature"
+                      placeholder="Best regards,&#10;Your Name&#10;Company Name&#10;www.company.com"
+                      value={bannerFormData.signature}
+                      onChange={(e) => setBannerFormData({ ...bannerFormData, signature: e.target.value })}
+                      className="min-h-[120px] resize-none font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use line breaks to format your signature as needed
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter className="pt-6 border-t">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setBannerOpen(false)}
+                  className="px-6"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="px-6"
+                  disabled={!bannerFormData.name.trim() || !userId}
+                >
+                  {editingBanner ? 'Update Banner' : 'Create Banner'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {companies.length === 0 ? (
@@ -465,8 +794,12 @@ export default function Companies() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="flex items-center gap-3 text-lg">
-                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <div className="relative w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                         <Building2 className="h-5 w-5 text-primary" />
+                        {companyBanners[company.id]?.length > 0 && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" 
+                               title="Has banner" />
+                        )}
                       </div>
                       <div>
                         <div className="font-semibold">{company.name}</div>
@@ -543,6 +876,16 @@ export default function Companies() {
                     </p>
                   )}
 
+                  {/* Banner Status */}
+                  {companyBanners[company.id]?.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      <span className="text-sm text-green-600 font-medium">
+                        Banner configured
+                      </span>
+                    </div>
+                  )}
+
                   {/* Metadata */}
                   {company.metadata && (
                     <div className="flex flex-wrap gap-2">
@@ -580,11 +923,11 @@ export default function Companies() {
                     className="flex-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toast.info("Company banner functionality coming soon!");
+                      handleBannerAction(company);
                     }}
                   >
                     <Image className="h-3.5 w-3.5 mr-1.5" />
-                    Banner
+                    {companyBanners[company.id]?.length > 0 ? 'Update Banner' : 'Add Banner'}
                   </Button>
                 </div>
 
