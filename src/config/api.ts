@@ -6,6 +6,7 @@ export const API_CONFIG = {
     LOGIN: "/auth/login",
     COMPANIES: "/companies",
     SMTP_CREDENTIALS: "/smtp-credentials",
-    ACCOUNTS: "/accounts"
+    ACCOUNTS: "/accounts",
+    SOCIAL_GENERATE: "/social-generate"
   }
 };
