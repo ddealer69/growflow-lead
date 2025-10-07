@@ -76,6 +76,10 @@ export default function Companies() {
   });
   const [companyBanners, setCompanyBanners] = useState<{[key: string]: Banner[]}>({});
   
+  // Company detail view state
+  const [selectedCompanyDetail, setSelectedCompanyDetail] = useState<Company | null>(null);
+  const [showingDetail, setShowingDetail] = useState(false);
+  
   const navigate = useNavigate();
 
   // Use the user ID from AuthContext instead of fetching from Supabase
@@ -294,22 +298,6 @@ export default function Companies() {
     }
   }
 
-  async function handleRefreshCompany(companyId: string) {
-    try {
-      const updatedCompany = await fetchCompanyDetails(companyId);
-      if (updatedCompany) {
-        setCompanies(prev => 
-          prev.map(company => 
-            company.id === companyId ? updatedCompany : company
-          )
-        );
-        toast.success("Company details refreshed");
-      }
-    } catch (error) {
-      console.error('Refresh company error:', error);
-    }
-  }
-
   async function fetchCompanyBanners(companyId: string): Promise<Banner[]> {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/companies/${companyId}/banners`, {
@@ -430,6 +418,35 @@ export default function Companies() {
     });
   }
 
+  function handleCompanyCardClick(company: Company) {
+    setSelectedCompanyDetail(company);
+    setShowingDetail(true);
+  }
+
+  function handleBackToCompanies() {
+    setSelectedCompanyDetail(null);
+    setShowingDetail(false);
+  }
+
+  const handleRefreshCompany = async (companyId: string) => {
+    try {
+      const updatedCompany = await fetchCompanyDetails(companyId);
+      if (updatedCompany) {
+        setCompanies(prev => prev.map(c => c.id === companyId ? updatedCompany : c));
+        
+        // If this is the currently viewed detail company, update it too
+        if (selectedCompanyDetail?.id === companyId) {
+          setSelectedCompanyDetail(updatedCompany);
+        }
+        
+        toast.success('Company refreshed successfully');
+      }
+    } catch (error) {
+      console.error('Error refreshing company:', error);
+      toast.error('Failed to refresh company');
+    }
+  };
+
   if (loading) {
     return <div className="text-muted-foreground">Loading...</div>;
   }
@@ -452,6 +469,435 @@ export default function Companies() {
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // If showing company detail, render the detail view
+  if (showingDetail && selectedCompanyDetail) {
+    const selectedCompanyBanners = companyBanners[selectedCompanyDetail.id] || [];
+    
+    return (
+      <div className="space-y-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={handleBackToCompanies}
+            className="gap-2"
+          >
+            ← Back to Companies
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{selectedCompanyDetail.name}</h1>
+            <p className="text-muted-foreground">Company Details</p>
+          </div>
+        </div>
+
+        {/* Company Detail Cards */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Basic Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Company Name</Label>
+                  <p className="text-base">{selectedCompanyDetail.name}</p>
+                </div>
+                
+                {selectedCompanyDetail.domain && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Website</Label>
+                    <a
+                      href={`https://${selectedCompanyDetail.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-base text-primary hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {selectedCompanyDetail.domain}
+                    </a>
+                  </div>
+                )}
+                
+                {selectedCompanyDetail.notes && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Notes</Label>
+                    <p className="text-base leading-relaxed">{selectedCompanyDetail.notes}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Company Metadata */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3">
+                {selectedCompanyDetail.metadata?.industry && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Industry</Label>
+                    <p className="text-base">{selectedCompanyDetail.metadata.industry}</p>
+                  </div>
+                )}
+                
+                {selectedCompanyDetail.metadata?.size && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Company Size</Label>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                      {selectedCompanyDetail.metadata.size}
+                    </span>
+                  </div>
+                )}
+                
+                {selectedCompanyDetail.metadata?.location && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Location</Label>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      {selectedCompanyDetail.metadata.location}
+                    </span>
+                  </div>
+                )}
+                
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    selectedCompanyDetail.is_active 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {selectedCompanyDetail.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* System Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>System Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Company ID</Label>
+                  <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
+                    {selectedCompanyDetail.id}
+                  </code>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Account ID</Label>
+                  <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
+                    {selectedCompanyDetail.account_id}
+                  </code>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Created</Label>
+                  <p className="text-base">{new Date(selectedCompanyDetail.created_at).toLocaleString()}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                  <p className="text-base">{new Date(selectedCompanyDetail.updated_at).toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Banner Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Image className="h-5 w-5" />
+                  Company Banner
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBannerAction(selectedCompanyDetail)}
+                >
+                  {selectedCompanyBanners.length > 0 ? 'Update Banner' : 'Create Banner'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedCompanyBanners.length > 0 ? (
+                <div className="space-y-4">
+                  {selectedCompanyBanners.map((banner) => (
+                    <div key={banner.id} className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Banner Name</Label>
+                        <p className="text-base">{banner.name}</p>
+                      </div>
+                      
+                      {banner.logo_url && (
+                        <div>
+                          <Label className="text-sm font-medium text-muted-foreground">Logo URL</Label>
+                          <a
+                            href={banner.logo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-base text-primary hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            {banner.logo_url}
+                          </a>
+                        </div>
+                      )}
+                      
+                      {banner.signature && (
+                        <div>
+                          <Label className="text-sm font-medium text-muted-foreground">Email Signature</Label>
+                          <pre className="text-sm bg-muted p-3 rounded-md font-mono whitespace-pre-wrap">
+                            {banner.signature}
+                          </pre>
+                        </div>
+                      )}
+                      
+                      {banner.metadata && (
+                        <div className="flex gap-2">
+                          {banner.metadata.purpose && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                              {banner.metadata.purpose}
+                            </span>
+                          )}
+                          {banner.metadata.department && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                              {banner.metadata.department}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Image className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">No banner configured for this company</p>
+                  <Button
+                    size="sm"
+                    onClick={() => handleBannerAction(selectedCompanyDetail)}
+                  >
+                    Create Banner
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Buttons */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => handleEdit(selectedCompanyDetail)}
+                className="gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit Company
+              </Button>
+              
+              <Button
+                variant="outline"
+                onClick={() => handleRefreshCompany(selectedCompanyDetail.id)}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh Details
+              </Button>
+              
+              <Button
+                variant="destructive"
+                onClick={() => handleDelete(selectedCompanyDetail)}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Company
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Raw Data */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Raw Data</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto font-mono">
+              {JSON.stringify(selectedCompanyDetail, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+
+        {/* Banner Management Dialog */}
+        <Dialog open={bannerOpen} onOpenChange={(isOpen) => {
+          setBannerOpen(isOpen);
+          if (!isOpen) {
+            setSelectedCompany(null);
+            setEditingBanner(null);
+            resetBannerForm();
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <form onSubmit={handleBannerSubmit}>
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-xl">
+                  {editingBanner ? 'Update Company Banner' : 'Create Company Banner'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingBanner 
+                    ? 'Update your company banner information' 
+                    : 'Create a new banner for your company'
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
+                {/* Company and User Info Display */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Company</Label>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-medium">{selectedCompany?.name}</div>
+                      <code className="text-xs text-muted-foreground">
+                        ID: {selectedCompany?.id}
+                      </code>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Label className="text-sm font-medium">Created By</Label>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-sm">{user?.full_name}</div>
+                      <code className="text-xs text-muted-foreground">
+                        ID: {userId || 'Loading...'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Banner Information</h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="banner-name" className="text-sm font-medium">
+                        Banner Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="banner-name"
+                        placeholder="Enter banner name"
+                        value={bannerFormData.name}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, name: e.target.value })}
+                        required
+                        className="h-10"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="logo-url" className="text-sm font-medium">Logo URL</Label>
+                      <Input
+                        id="logo-url"
+                        placeholder="https://example.com/logo.png"
+                        value={bannerFormData.logo_url}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, logo_url: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Details */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Banner Details</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="purpose" className="text-sm font-medium">Purpose</Label>
+                      <Input
+                        id="purpose"
+                        placeholder="e.g., Sales campaigns"
+                        value={bannerFormData.purpose}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, purpose: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department" className="text-sm font-medium">Department</Label>
+                      <Input
+                        id="department"
+                        placeholder="e.g., Sales"
+                        value={bannerFormData.department}
+                        onChange={(e) => setBannerFormData({ ...bannerFormData, department: e.target.value })}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Signature */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Email Signature</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="signature" className="text-sm font-medium">Signature Template</Label>
+                    <Textarea
+                      id="signature"
+                      placeholder="Best regards,&#10;Your Name&#10;Company Name&#10;www.company.com"
+                      value={bannerFormData.signature}
+                      onChange={(e) => setBannerFormData({ ...bannerFormData, signature: e.target.value })}
+                      className="min-h-[120px] resize-none font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use line breaks to format your signature as needed
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter className="pt-6 border-t">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setBannerOpen(false)}
+                  className="px-6"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="px-6"
+                  disabled={!bannerFormData.name.trim() || !userId}
+                >
+                  {editingBanner ? 'Update Banner' : 'Create Banner'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -789,7 +1235,11 @@ export default function Companies() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {companies.map((company) => (
-            <Card key={company.id} className="group hover:shadow-lg hover:border-primary/50 transition-all duration-200">
+            <Card 
+              key={company.id} 
+              className="group hover:shadow-lg hover:border-primary/50 transition-all duration-200 cursor-pointer"
+              onClick={() => handleCompanyCardClick(company)}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
