@@ -11,6 +11,7 @@ import CompanyDetails from "./pages/CompanyDetails";
 import Settings from "./pages/Settings";
 import Social from "./pages/Social";
 import Auth from "./pages/Auth";
+import GetLeads from "./pages/GetLeads";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -28,7 +29,7 @@ const App = () => (
             <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/companies" element={<AppLayout><Companies /></AppLayout>} />
             <Route path="/companies/:id" element={<AppLayout><CompanyDetails /></AppLayout>} />
-            <Route path="/leads" element={<AppLayout><Placeholder title="Get Leads" description="Collect leads using Google Custom Search API" /></AppLayout>} />
+            <Route path="/leads" element={<AppLayout><GetLeads /></AppLayout>} />
             <Route path="/campaigns" element={<AppLayout><Placeholder title="Campaigns" description="Email and LinkedIn campaign management" /></AppLayout>} />
             <Route path="/social" element={<AppLayout><Social /></AppLayout>} />
             <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
