@@ -1,0 +1,1279 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { API_CONFIG } from "@/config/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface Banner {
+  id: string;
+  name: string;
+  logo_url?: string;
+  signature?: string;
+  metadata?: any;
+  created_by: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  domain?: string;
+  notes?: string;
+  metadata?: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  banners: Banner[];
+}
+
+interface CompaniesResponse {
+  success: boolean;
+  message: string;
+  data: {
+    account_id: string;
+    companies: Company[];
+    total_companies: number;
+    total_banners: number;
+  };
+}
+
+interface Campaign {
+  id: string;
+  account_id: string;
+  company_id: string;
+  banner_id: string;
+  smtp_credential_id: string;
+  name: string;
+  subject: string;
+  email_template: string;
+  status: "draft" | "running" | "paused" | "completed" | "failed";
+  scheduled_at?: string;
+  total_recipients: number;
+  sent_count: number;
+  delivered_count: number;
+  opened_count: number;
+  clicked_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CampaignsResponse {
+  success: boolean;
+  message: string;
+  campaigns: Campaign[];
+}
+
+interface BannersResponse {
+  success: boolean;
+  message: string;
+  banners: Banner[];
+}
+
+interface SmtpCredential {
+  id: string;
+  account_id: string;
+  display_name: string;
+  smtp_host: string;
+  smtp_port: number;
+  username: string;
+  auth_type: string;
+  verified: boolean;
+  last_verified_at?: string;
+  rate_limit_per_hour: number;
+  metadata?: any;
+  created_at: string;
+}
+
+interface SmtpCredentialsResponse {
+  success: boolean;
+  message: string;
+  smtp_credentials: SmtpCredential[];
+}
+
+interface CreateCampaignForm {
+  name: string;
+  subject: string;
+  email_template: string;
+  banner_id: string;
+  smtp_credential_id: string;
+  scheduled_at: string;
+}
+
+export default function Campaigns() {
+  const navigate = useNavigate();
+  const { user, accountId } = useAuth();
+  const { toast } = useToast();
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [smtpCredentials, setSmtpCredentials] = useState<SmtpCredential[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [loadingBanners, setLoadingBanners] = useState(false);
+  const [loadingSmtp, setLoadingSmtp] = useState(false);
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
+  const [showLeadSelection, setShowLeadSelection] = useState(false);
+  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
+    name: "",
+    subject: "",
+    email_template: "",
+    banner_id: "",
+    smtp_credential_id: "",
+    scheduled_at: ""
+  });
+
+  // Demo HTML template for email campaigns
+  const demoHtmlTemplate = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <title>Blue Email Template</title>
+  <style>
+    /* MOBILE - some clients ignore media queries but many support them */
+    @media only screen and (max-width:600px) {
+      .container { width: 100% !important; }
+      .stack { display:block !important; width:100% !important; }
+      .hero-img { width:100% !important; height:auto !important; }
+      .padding-sm { padding: 12px !important; }
+      .h1 { font-size: 22px !important; line-height: 28px !important; }
+      .p { font-size: 15px !important; line-height:22px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f3f6fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f3f6fb;">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <!-- Container -->
+        <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(3, 48, 86, 0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="padding:18px 24px; background: linear-gradient(90deg,#0b6fed 0%, #2aa0ff 100%); color:#ffffff;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="left" style="vertical-align:middle;">
+                    <img src="https://via.placeholder.com/120x36?text=${selectedCompany?.name || 'Logo'}" alt="Company Logo" width="120" style="display:block; border:0; outline:none; text-decoration:none;">
+                  </td>
+                  <td align="right" style="vertical-align:middle; color:#ffffff; font-size:14px;">
+                    <span style="opacity:0.95;">${selectedCompany?.name || 'Awesome Product'}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Hero -->
+          <tr>
+            <td style="padding:28px 24px 8px 24px; text-align:center;">
+              <h1 class="h1" style="margin:0; font-size:28px; line-height:36px; color:#033a66;">Hello, \{\{first_name\}\} 👋</h1>
+              <p class="p" style="margin:12px 0 0 0; font-size:16px; line-height:24px; color:#4b6b88;">
+                Welcome to <strong>${selectedCompany?.name || 'Awesome Product'}</strong> — here's a quick summary of what's new.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Hero image -->
+          <tr>
+            <td style="padding:18px 24px; text-align:center;">
+              <img class="hero-img" src="https://via.placeholder.com/520x220.png?text=Campaign+Hero+Image" alt="Hero image" width="520" style="display:block; width:100%; max-width:520px; border-radius:8px; border:0; outline:none;">
+            </td>
+          </tr>
+
+          <!-- Content row -->
+          <tr>
+            <td style="padding:16px 24px 24px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td class="stack" style="width:50%; padding-right:12px; vertical-align:top;">
+                    <h3 style="margin:0 0 8px 0; font-size:18px; color:#033a66;">Feature Update</h3>
+                    <p style="margin:0; font-size:14px; color:#4b6b88; line-height:20px;">
+                      We shipped a faster onboarding flow and improved analytics to help you measure impact in minutes.
+                    </p>
+                  </td>
+                  <td class="stack" style="width:50%; padding-left:12px; vertical-align:top;">
+                    <h3 style="margin:0 0 8px 0; font-size:18px; color:#033a66;">Pro Tip</h3>
+                    <p style="margin:0; font-size:14px; color:#4b6b88; line-height:20px;">
+                      Use the new integrations panel to connect your tools — setup takes less than 2 minutes.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td style="padding:0 24px 28px 24px; text-align:center;">
+              <a href="https://example.com/get-started" style="display:inline-block; text-decoration:none; border-radius:8px; padding:12px 22px; font-weight:600; font-size:16px; color:#ffffff; background: linear-gradient(90deg,#0b6fed 0%, #2aa0ff 100%); box-shadow:0 6px 14px rgba(10, 88, 200, 0.12);">
+                Get started — it's free
+              </a>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 24px;">
+              <hr style="border:none; height:1px; background:#eef4fb; margin:0;">
+            </td>
+          </tr>
+
+          <!-- Footer content -->
+          <tr>
+            <td style="padding:18px 24px; font-size:13px; color:#6b7b8f;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="vertical-align:top;">
+                    <strong style="color:#033a66;">${selectedCompany?.name || 'Awesome Product'}</strong><br>
+                    ${selectedCompany?.domain ? `${selectedCompany.domain}` : '123 Blueway St. · Suite 400'}<br>
+                    City, Country
+                  </td>
+                  <td align="right" style="vertical-align:top;">
+                    <a href="https://example.com/preferences" style="color:#2aa0ff; text-decoration:none; font-size:13px;">Manage preferences</a><br>
+                    <a href="https://example.com/unsubscribe" style="color:#9fbfe8; text-decoration:none; font-size:13px;">Unsubscribe</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Small legal -->
+          <tr>
+            <td style="padding:0 24px 20px 24px; font-size:12px; color:#9aa9bf; text-align:center;">
+              <span>© \{\{year\}\} ${selectedCompany?.name || 'Awesome Product'}. All rights reserved.</span>
+            </td>
+          </tr>
+        </table>
+        <!-- /Container -->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  useEffect(() => {
+    if (accountId) {
+      fetchCompanies();
+    }
+  }, [accountId]);
+
+  const fetchCompanies = async () => {
+    if (!accountId) {
+      toast({
+        title: "Error",
+        description: "No account ID found. Please log in again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: CompaniesResponse = await response.json();
+      
+      if (data.success) {
+        setCompanies(data.data.companies);
+        toast({
+          title: "Success",
+          description: `Found ${data.data.total_companies} companies with ${data.data.total_banners} banners`,
+        });
+      } else {
+        throw new Error(data.message || "Failed to fetch companies");
+      }
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch companies",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompanyClick = (company: Company) => {
+    setSelectedCompany(company);
+    fetchCampaigns(company.id);
+    fetchBanners(company.id);
+    fetchSmtpCredentials();
+    toast({
+      title: "Company Selected",
+      description: `Opening campaigns for ${company.name}`,
+    });
+  };
+
+  const handleBackToCompanies = () => {
+    setSelectedCompany(null);
+    setCampaigns([]);
+    setBanners([]);
+    setSmtpCredentials([]);
+    setShowCreateCampaign(false);
+    setShowLeadSelection(false);
+    setCreatedCampaign(null);
+  };
+
+  const fetchCampaigns = async (companyId: string) => {
+    setLoadingCampaigns(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/companies/${companyId}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: CampaignsResponse = await response.json();
+      
+      if (data.success) {
+        setCampaigns(data.campaigns || []);
+        toast({
+          title: "Success",
+          description: `Found ${data.campaigns?.length || 0} campaigns`,
+        });
+      } else {
+        throw new Error(data.message || "Failed to fetch campaigns");
+      }
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+      setCampaigns([]);
+      // Don't show error toast for 404 - just means no campaigns exist yet
+      if (error instanceof Error && !error.message.includes('404')) {
+        toast({
+          title: "Info",
+          description: "No campaigns found for this company",
+        });
+      }
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  const fetchBanners = async (companyId: string) => {
+    setLoadingBanners(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/companies/${companyId}/banners`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: BannersResponse = await response.json();
+      
+      if (data.success) {
+        setBanners(data.banners || []);
+      } else {
+        throw new Error(data.message || "Failed to fetch banners");
+      }
+    } catch (error) {
+      console.error("Error fetching banners:", error);
+      setBanners([]);
+    } finally {
+      setLoadingBanners(false);
+    }
+  };
+
+  const fetchSmtpCredentials = async () => {
+    if (!accountId) return;
+    
+    setLoadingSmtp(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/accounts/${accountId}/smtp-credentials`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: SmtpCredentialsResponse = await response.json();
+      
+      if (data.success) {
+        setSmtpCredentials(data.smtp_credentials || []);
+      } else {
+        throw new Error(data.message || "Failed to fetch SMTP credentials");
+      }
+    } catch (error) {
+      console.error("Error fetching SMTP credentials:", error);
+      setSmtpCredentials([]);
+    } finally {
+      setLoadingSmtp(false);
+    }
+  };
+
+  const createCampaign = async () => {
+    if (!selectedCompany || !user?.id || !accountId) {
+      toast({
+        title: "Error",
+        description: "Missing required information to create campaign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingCampaign(true);
+    try {
+      const campaignData = {
+        account_id: accountId,
+        company_id: selectedCompany.id,
+        created_by: user.id,
+        name: campaignForm.name,
+        subject: campaignForm.subject,
+        email_template: campaignForm.email_template,
+        banner_id: campaignForm.banner_id,
+        smtp_credential_id: campaignForm.smtp_credential_id,
+        scheduled_at: campaignForm.scheduled_at || null
+      };
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(campaignData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setCampaigns(prev => [...prev, data.campaign]);
+        setCreatedCampaign(data.campaign);
+        setShowCreateCampaign(false);
+        setShowLeadSelection(true);
+        setCampaignForm({
+          name: "",
+          subject: "",
+          email_template: "",
+          banner_id: "",
+          smtp_credential_id: "",
+          scheduled_at: ""
+        });
+        toast({
+          title: "Success",
+          description: "Campaign created successfully. Now select leads for this campaign.",
+        });
+      } else {
+        throw new Error(data.message || "Failed to create campaign");
+      }
+    } catch (error) {
+      console.error("Error creating campaign:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingCampaign(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {selectedCompany ? (
+        // Company Campaign Detail View
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={handleBackToCompanies}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Companies
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold">{selectedCompany.name} Campaigns</h1>
+                <p className="text-muted-foreground">
+                  Email and LinkedIn campaign management for {selectedCompany.name}
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => setShowCreateCampaign(true)} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Add Campaign
+            </Button>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Company Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Company Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <span className="font-medium">Name:</span> {selectedCompany.name}
+                </div>
+                {selectedCompany.domain && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Domain:</span>
+                    <a 
+                      href={`https://${selectedCompany.domain}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1"
+                    >
+                      {selectedCompany.domain}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Status:</span>
+                  <Badge variant={selectedCompany.is_active ? "default" : "secondary"} className="ml-2">
+                    {selectedCompany.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="font-medium">Created:</span> {new Date(selectedCompany.created_at).toLocaleString()}
+                </div>
+                {selectedCompany.notes && (
+                  <div>
+                    <span className="font-medium">Notes:</span>
+                    <p className="mt-1 text-sm text-muted-foreground">{selectedCompany.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Company Banners */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Banners ({selectedCompany.banners.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedCompany.banners.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedCompany.banners.map((banner) => (
+                      <div key={banner.id} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2">
+                            <h4 className="font-medium">{banner.name}</h4>
+                            {banner.signature && (
+                              <p className="text-sm text-muted-foreground">{banner.signature}</p>
+                            )}
+                          </div>
+                          <Badge variant={banner.is_active ? "default" : "secondary"}>
+                            {banner.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No banners found for this company.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Campaigns List */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Campaigns ({campaigns.length})
+                    {loadingCampaigns && (
+                      <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {loadingCampaigns 
+                      ? "Loading campaigns..." 
+                      : "Manage your email campaigns"
+                    }
+                  </CardDescription>
+                </div>
+                {!loadingCampaigns && (
+                  <Button 
+                    onClick={() => setShowCreateCampaign(true)}
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Campaign
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingCampaigns ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse border rounded-lg p-4">
+                      <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : campaigns.length > 0 ? (
+                <div className="space-y-4">
+                  {campaigns.map((campaign) => (
+                    <div key={campaign.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-medium">{campaign.name}</h4>
+                          <p className="text-sm text-muted-foreground mt-1">{campaign.subject}</p>
+                        </div>
+                        <Badge 
+                          variant={
+                            campaign.status === "running" ? "default" : 
+                            campaign.status === "completed" ? "secondary" : 
+                            campaign.status === "failed" ? "destructive" : 
+                            campaign.status === "paused" ? "outline" : "secondary"
+                          }
+                          className="flex items-center gap-1"
+                        >
+                          {campaign.status === "running" && <Play className="h-3 w-3" />}
+                          {campaign.status === "paused" && <Pause className="h-3 w-3" />}
+                          {campaign.status === "draft" && <Clock className="h-3 w-3" />}
+                          {campaign.status}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                        <div>
+                          <span className="font-medium">Recipients:</span>
+                          <div className="text-muted-foreground">{campaign.total_recipients}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium">Sent:</span>
+                          <div className="text-muted-foreground">{campaign.sent_count}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium">Delivered:</span>
+                          <div className="text-muted-foreground">{campaign.delivered_count}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium">Opened:</span>
+                          <div className="text-muted-foreground">{campaign.opened_count}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <span>Created: {new Date(campaign.created_at).toLocaleString()}</span>
+                        {campaign.scheduled_at && (
+                          <span>Scheduled: {new Date(campaign.scheduled_at).toLocaleString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">No Campaigns Found</h3>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    No campaigns found for {selectedCompany.name}.
+                    <br />
+                    Create your first campaign to get started.
+                  </p>
+                  <Button 
+                    onClick={() => setShowCreateCampaign(true)} 
+                    className="mt-4"
+                    variant="outline"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Campaign
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Create Campaign Form */}
+          {showCreateCampaign && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Campaign</CardTitle>
+                <CardDescription>
+                  Create an email campaign for {selectedCompany.name}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="campaign_name">Campaign Name</Label>
+                    <Input
+                      id="campaign_name"
+                      value={campaignForm.name}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, name: e.target.value}))}
+                      placeholder="e.g., Holiday Newsletter 2025"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="campaign_subject">Email Subject</Label>
+                    <Input
+                      id="campaign_subject"
+                      value={campaignForm.subject}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, subject: e.target.value}))}
+                      placeholder="e.g., Exciting updates from our team!"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="banner_select">Company Banner</Label>
+                    <Select 
+                      value={campaignForm.banner_id} 
+                      onValueChange={(value) => setCampaignForm(prev => ({...prev, banner_id: value}))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a banner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingBanners ? (
+                          <SelectItem value="" disabled>Loading banners...</SelectItem>
+                        ) : banners.length > 0 ? (
+                          banners.map((banner) => (
+                            <SelectItem key={banner.id} value={banner.id}>
+                              {banner.name} {banner.is_active ? "(Active)" : "(Inactive)"}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>No banners found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp_select">SMTP Server</Label>
+                    <Select 
+                      value={campaignForm.smtp_credential_id} 
+                      onValueChange={(value) => setCampaignForm(prev => ({...prev, smtp_credential_id: value}))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select SMTP server" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingSmtp ? (
+                          <SelectItem value="" disabled>Loading SMTP servers...</SelectItem>
+                        ) : smtpCredentials.length > 0 ? (
+                          smtpCredentials.map((smtp) => (
+                            <SelectItem key={smtp.id} value={smtp.id}>
+                              {smtp.display_name} {smtp.verified ? "✓" : "⚠️"}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>No SMTP servers found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="scheduled_at">Schedule (Optional)</Label>
+                  <Input
+                    id="scheduled_at"
+                    type="datetime-local"
+                    value={campaignForm.scheduled_at}
+                    onChange={(e) => setCampaignForm(prev => ({...prev, scheduled_at: e.target.value}))}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="email_template">Email Template</Label>
+                  <Textarea
+                    id="email_template"
+                    value={campaignForm.email_template}
+                    onChange={(e) => setCampaignForm(prev => ({...prev, email_template: e.target.value}))}
+                    placeholder="Enter your email HTML template or use the template below..."
+                    rows={6}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setCampaignForm(prev => ({...prev, email_template: demoHtmlTemplate}))}
+                  >
+                    Use Demo Template
+                  </Button>
+                </div>
+
+                {/* Pre-filled values display */}
+                <div className="bg-muted p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Pre-filled Information:</h4>
+                  <div className="grid gap-2 text-sm">
+                    <div><span className="font-medium">Account ID:</span> <code>{accountId}</code></div>
+                    <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
+                    <div><span className="font-medium">Created By:</span> <code>{user?.id}</code></div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowCreateCampaign(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={createCampaign} 
+                    disabled={creatingCampaign || !campaignForm.name || !campaignForm.subject || !campaignForm.banner_id || !campaignForm.smtp_credential_id}
+                  >
+                    {creatingCampaign && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Create Campaign
+                  </Button>
+                  <Button 
+                    variant="secondary"
+                    onClick={() => {
+                      // This will show the lead selection form after campaign creation
+                      if (!campaignForm.name || !campaignForm.subject) {
+                        toast({
+                          title: "Error",
+                          description: "Please fill in campaign name and subject first",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      
+                      // First create the campaign, then show lead selection
+                      createCampaign();
+                    }}
+                    disabled={!campaignForm.name || !campaignForm.subject || creatingCampaign}
+                  >
+                    {creatingCampaign ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      "Create & Select Leads →"
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Lead Selection Form */}
+          {showLeadSelection && createdCampaign && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Leads for Campaign</CardTitle>
+                <CardDescription>
+                  Select leads for "{createdCampaign.name}" campaign
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Campaign Details Display */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-medium mb-2 text-blue-800">Campaign Information:</h4>
+                  <div className="grid gap-2 text-sm text-blue-700">
+                    <div><span className="font-medium">Account ID:</span> <code>{accountId}</code></div>
+                    <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
+                    <div><span className="font-medium">Campaign ID:</span> <code>{createdCampaign.id}</code></div>
+                    <div><span className="font-medium">Campaign Name:</span> {createdCampaign.name}</div>
+                    <div><span className="font-medium">Subject:</span> {createdCampaign.subject}</div>
+                    <div><span className="font-medium">Status:</span> <Badge variant="secondary">{createdCampaign.status}</Badge></div>
+                    <div><span className="font-medium">Created:</span> {new Date(createdCampaign.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Lead Selection Options */}
+                <div className="space-y-4">
+                  <h4 className="font-medium">Lead Selection Options:</h4>
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card className="cursor-pointer hover:border-primary transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <Users className="h-8 w-8 text-primary" />
+                          <div>
+                            <h5 className="font-medium">Import Lead List</h5>
+                            <p className="text-sm text-muted-foreground">Upload CSV or Excel file with leads</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="cursor-pointer hover:border-primary transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <Search className="h-8 w-8 text-primary" />
+                          <div>
+                            <h5 className="font-medium">Use Existing Leads</h5>
+                            <p className="text-sm text-muted-foreground">Select from previously collected leads</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Building2 className="h-8 w-8 text-primary" />
+                        <div className="flex-1">
+                          <h5 className="font-medium">Search & Collect New Leads</h5>
+                          <p className="text-sm text-muted-foreground mb-3">Use our lead generation tools to find new prospects</p>
+                          <Button 
+                            onClick={() => {
+                              // Navigate to GetLeads page with company context
+                              navigate('/leads', { 
+                                state: { 
+                                  companyId: selectedCompany.id,
+                                  campaignId: createdCampaign.id,
+                                  returnTo: 'campaigns'
+                                }
+                              });
+                            }}
+                            className="w-full"
+                          >
+                            Go to Lead Generation →
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Navigation Buttons */}
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowLeadSelection(false);
+                      setCreatedCampaign(null);
+                    }}
+                  >
+                    Back to Campaigns
+                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Manual Lead Entry",
+                          description: "Manual lead entry form coming soon!",
+                        });
+                      }}
+                    >
+                      Add Leads Manually
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => {
+                        toast({
+                          title: "Campaign Setup Complete",
+                          description: "Your campaign is ready! Add leads to start sending.",
+                        });
+                        setShowLeadSelection(false);
+                        setCreatedCampaign(null);
+                      }}
+                    >
+                      Finish Setup
+                    </Button>
+                  </div>
+                </div>
+
+                {/* API Debug for Lead Selection */}
+                <div className="bg-muted p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">API Debug - Lead Selection:</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Campaign Creation Endpoint:</span>
+                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
+                        POST {API_CONFIG.BASE_URL}/api/campaigns
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium">Leads Import Endpoint:</span>
+                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
+                        POST {API_CONFIG.BASE_URL}/api/campaigns/{createdCampaign.id}/leads
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium">Campaign cURL:</span>
+                      <pre className="mt-2 text-xs bg-white p-3 rounded-md overflow-x-auto">
+{`curl -X POST "${API_CONFIG.BASE_URL}/api/campaigns" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "account_id": "${accountId}",
+    "company_id": "${selectedCompany.id}",
+    "name": "${createdCampaign.name}",
+    "subject": "${createdCampaign.subject}"
+  }'`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* HTML Email Template Visualization */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Campaign Template
+              </CardTitle>
+              <CardDescription>
+                Preview and edit email campaign templates for {selectedCompany.name}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="preview" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="preview" className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Preview
+                  </TabsTrigger>
+                  <TabsTrigger value="code" className="flex items-center gap-2">
+                    <Code className="h-4 w-4" />
+                    HTML Code
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="preview" className="space-y-4">
+                  <div className="border rounded-lg bg-gray-50 p-4">
+                    <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
+                      <iframe
+                        srcDoc={demoHtmlTemplate}
+                        className="w-full h-[600px] border-0 rounded-lg"
+                        title="Email Template Preview"
+                        sandbox="allow-same-origin"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    This is a live preview of your email template with {selectedCompany.name}'s branding
+                  </p>
+                </TabsContent>
+                
+                <TabsContent value="code" className="space-y-4">
+                  <div className="relative">
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs max-h-[600px] overflow-y-auto">
+                      <code>{demoHtmlTemplate}</code>
+                    </pre>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="absolute top-2 right-2 bg-white/90 hover:bg-white"
+                      onClick={() => {
+                        navigator.clipboard.writeText(demoHtmlTemplate);
+                        toast({
+                          title: "Copied!",
+                          description: "HTML code copied to clipboard",
+                        });
+                      }}
+                    >
+                      Copy HTML
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    HTML email template code customized for {selectedCompany.name}. Variables like {"{"}{"{"} first_name {"}"} {"}"} and {"{"}{"{"} year {"}"} {"}"} will be replaced during sending.
+                  </p>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        // Companies List View
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Campaigns</h1>
+              <p className="text-muted-foreground">
+                Email and LinkedIn campaign management - Account ID: 
+                <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
+              </p>
+            </div>
+            <Button onClick={fetchCompanies} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Refresh Companies"
+              )}
+            </Button>
+          </div>
+
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader>
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-3 bg-muted rounded"></div>
+                  <div className="h-3 bg-muted rounded w-2/3"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : companies.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {companies.map((company) => (
+            <Card 
+              key={company.id} 
+              className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105 hover:border-primary/50"
+              onClick={() => handleCompanyClick(company)}
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  {company.name}
+                </CardTitle>
+                {company.domain && (
+                  <CardDescription className="flex items-center gap-1">
+                    <Globe className="h-3 w-3" />
+                    {company.domain}
+                  </CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Company Status and Banner Count */}
+                  <div className="flex items-center justify-between">
+                    <Badge variant={company.is_active ? "default" : "secondary"}>
+                      {company.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {company.banners.length} Banner{company.banners.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+
+                  {/* Campaign Actions Preview */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Mail className="h-3 w-3" />
+                    <span>Email Campaigns</span>
+                    <Send className="h-3 w-3 ml-2" />
+                    <span>LinkedIn Outreach</span>
+                  </div>
+                  
+                  {/* Company Notes */}
+                  {company.notes && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {company.notes}
+                    </p>
+                  )}
+
+                  {/* Active Banners Preview */}
+                  {company.banners.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Active Banners:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {company.banners.slice(0, 3).map((banner) => (
+                          <Badge 
+                            key={banner.id} 
+                            variant={banner.is_active ? "secondary" : "outline"}
+                            className="text-xs"
+                          >
+                            {banner.name}
+                          </Badge>
+                        ))}
+                        {company.banners.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{company.banners.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Company Creation Date */}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2 border-t">
+                    <Calendar className="h-3 w-3" />
+                    Created: {new Date(company.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No Companies Found</h3>
+            <p className="text-sm text-muted-foreground text-center mt-2">
+              No companies found for account ID: {accountId}
+              <br />
+              Try creating some companies first or check your account permissions.
+            </p>
+            <Button 
+              onClick={() => navigate('/companies')} 
+              className="mt-4"
+              variant="outline"
+            >
+              Go to Companies
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+          {/* API Debug Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>API Debug Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <span className="font-medium">Account ID:</span> 
+                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
+                </div>
+                <div>
+                  <span className="font-medium">Companies Endpoint:</span> 
+                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
+                    GET {API_CONFIG.BASE_URL}/accounts/{accountId}/companies-with-banners
+                  </code>
+                </div>
+                <div>
+                  <span className="font-medium">Total Companies:</span> 
+                  <span className="ml-1">{companies.length}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Total Banners:</span> 
+                  <span className="ml-1">{companies.reduce((total, company) => total + company.banners.length, 0)}</span>
+                </div>
+                <div>
+                  <span className="font-medium">cURL Command:</span>
+                  <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`curl -X GET "${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners" \\
+  -H "Content-Type: application/json"`}
+                  </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
