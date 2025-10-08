@@ -104,6 +104,24 @@ export default function GetLeads() {
   const [visibleResults, setVisibleResults] = useState<Set<string>>(new Set());
   const [loadingExistingQueries, setLoadingExistingQueries] = useState(false);
   const [enrichingLeads, setEnrichingLeads] = useState<Set<string>>(new Set());
+  
+  // Session variables for the current company context
+  const [sessionVars, setSessionVars] = useState<{
+    account_id: string;
+    company_id: string;
+    company_banner_id: string;
+    created_by: string;
+    source_query_id: string;
+  } | null>(null);
+  
+  // Enrichment progress tracking
+  const [enrichmentProgress, setEnrichmentProgress] = useState<{[queryId: string]: {
+    total: number;
+    completed: number;
+    successful: number;
+    failed: number;
+    isRunning: boolean;
+  }}>({});
 
   useEffect(() => {
     if (accountId) {
@@ -165,6 +183,9 @@ export default function GetLeads() {
     setQueries([]);
     setSearchResults({});
     setVisibleResults(new Set());
+    // Clear session variables and enrichment progress when going back
+    setSessionVars(null);
+    setEnrichmentProgress({});
   };
 
   const fetchExistingQueries = async (companyId: string) => {
@@ -182,7 +203,18 @@ export default function GetLeads() {
       
       if (data.success) {
         setQueries(data.queries || []);
+        
+        // Save session variables from the first query if available
         if (data.queries && data.queries.length > 0) {
+          const firstQuery = data.queries[0];
+          setSessionVars({
+            account_id: firstQuery.account_id,
+            company_id: firstQuery.company_id,
+            company_banner_id: firstQuery.company_banner_id,
+            created_by: firstQuery.created_by,
+            source_query_id: firstQuery.id // Will be updated when selecting specific query
+          });
+          
           toast({
             title: "Success",
             description: `Found ${data.queries.length} existing queries for this company`,
@@ -336,6 +368,15 @@ export default function GetLeads() {
           ...prev,
           [queryId]: data.results
         }));
+        
+        // Update session vars with the current query ID for enrichment
+        if (sessionVars) {
+          setSessionVars(prev => prev ? {
+            ...prev,
+            source_query_id: queryId
+          } : null);
+        }
+        
         toast({
           title: "Success",
           description: `Retrieved ${data.results.length} search results`,
@@ -359,7 +400,7 @@ export default function GetLeads() {
     }
   };
 
-  const bulkEnrichLeads = async (queryId: string) => {
+  const enrichLeadsIndividually = async (queryId: string) => {
     const results = searchResults[queryId];
     if (!results || results.length === 0) {
       toast({
@@ -370,101 +411,153 @@ export default function GetLeads() {
       return;
     }
 
-    setEnrichingLeads(prev => new Set([...prev, queryId]));
-    try {
-      // Extract all lead IDs from the search results
-      const leadIds = results.map(result => result.id);
-      
-      console.log("Attempting to enrich leads:", {
-        queryId,
-        leadIds,
-        leadCount: leadIds.length,
-        endpoint: `${API_CONFIG.BASE_URL}/api/leads/bulk-enrich`
+    if (!sessionVars) {
+      toast({
+        title: "Error",
+        description: "Session variables not found. Please reload the queries.",
+        variant: "destructive",
       });
-      
-      const requestBody = {
-        lead_ids: leadIds
-      };
-      
-      console.log("Request body:", JSON.stringify(requestBody, null, 2));
-      
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/leads/bulk-enrich`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
+      return;
+    }
 
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        // Try to get error details from response
-        let errorDetails;
-        try {
-          errorDetails = await response.json();
-          console.error("Error response body:", errorDetails);
-        } catch (parseError) {
-          const textResponse = await response.text();
-          console.error("Error response text:", textResponse);
-          errorDetails = { message: textResponse };
-        }
-        
-        throw new Error(`HTTP ${response.status}: ${errorDetails.message || errorDetails.error || 'Unknown error'}`);
+    // Initialize progress tracking
+    setEnrichmentProgress(prev => ({
+      ...prev,
+      [queryId]: {
+        total: results.length,
+        completed: 0,
+        successful: 0,
+        failed: 0,
+        isRunning: true
       }
+    }));
 
-      const data = await response.json();
-      console.log("Success response:", data);
-      
-      if (data.success) {
-        toast({
-          title: "Success",
-          description: `${data.message} - Enriched ${leadIds.length} leads`,
-        });
+    setEnrichingLeads(prev => new Set([...prev, queryId]));
+
+    try {
+      console.log("Starting individual lead enrichment:", {
+        queryId,
+        totalLeads: results.length,
+        sessionVars,
+        endpoint: `${API_CONFIG.BASE_URL}/api/leads/new-lead-123/enrich`
+      });
+
+      // Process leads one by one
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
         
-        // Optionally update the search results to reflect enrichment status
-        // This depends on if the API returns updated enrichment status
-        if (data.results) {
-          setSearchResults(prev => ({
-            ...prev,
-            [queryId]: prev[queryId].map(result => {
-              const enrichmentResult = data.results.find((r: any) => r.id === result.id);
-              if (enrichmentResult) {
-                return {
-                  ...result,
-                  is_processed: enrichmentResult.is_enriched || result.is_processed
-                };
+        try {
+          const requestBody = {
+            account_id: sessionVars.account_id,
+            company_id: sessionVars.company_id,
+            created_by: sessionVars.created_by,
+            company_banner_id: sessionVars.company_banner_id,
+            source_query_id: queryId,
+            google_result_id: result.id
+          };
+
+          console.log(`Enriching lead ${i + 1}/${results.length}:`, {
+            leadId: result.id,
+            title: result.title,
+            requestBody
+          });
+
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/leads/${result.id}/enrich`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`Lead ${i + 1} enriched successfully:`, data);
+            
+            // Update progress - successful
+            setEnrichmentProgress(prev => ({
+              ...prev,
+              [queryId]: {
+                ...prev[queryId],
+                completed: i + 1,
+                successful: prev[queryId].successful + 1
               }
-              return result;
-            })
+            }));
+
+            // Mark this result as processed
+            setSearchResults(prev => ({
+              ...prev,
+              [queryId]: prev[queryId].map(r => 
+                r.id === result.id ? { ...r, is_processed: true } : r
+              )
+            }));
+
+          } else {
+            console.error(`Failed to enrich lead ${i + 1}:`, response.status);
+            
+            // Update progress - failed
+            setEnrichmentProgress(prev => ({
+              ...prev,
+              [queryId]: {
+                ...prev[queryId],
+                completed: i + 1,
+                failed: prev[queryId].failed + 1
+              }
+            }));
+          }
+
+        } catch (leadError) {
+          console.error(`Error enriching lead ${i + 1}:`, leadError);
+          
+          // Update progress - failed
+          setEnrichmentProgress(prev => ({
+            ...prev,
+            [queryId]: {
+              ...prev[queryId],
+              completed: i + 1,
+              failed: prev[queryId].failed + 1
+            }
           }));
         }
-      } else {
-        throw new Error(data.message || "Failed to enrich leads");
-      }
-    } catch (error) {
-      console.error("Error enriching leads:", error);
-      
-      let errorMessage = "Failed to enrich leads";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        
-        // Add specific guidance for common errors
-        if (error.message.includes('400')) {
-          errorMessage += " - Bad request. Check lead IDs format or API endpoint.";
-        } else if (error.message.includes('401')) {
-          errorMessage += " - Unauthorized. Check authentication.";
-        } else if (error.message.includes('404')) {
-          errorMessage += " - Endpoint not found. Verify API URL.";
-        } else if (error.message.includes('500')) {
-          errorMessage += " - Server error. Try again later.";
+
+        // Small delay between requests to avoid overwhelming the API
+        if (i < results.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
+
+      // Final update
+      setEnrichmentProgress(prev => ({
+        ...prev,
+        [queryId]: {
+          ...prev[queryId],
+          isRunning: false
+        }
+      }));
+
+      const finalProgress = enrichmentProgress[queryId];
+      if (finalProgress) {
+        toast({
+          title: "Enrichment Complete",
+          description: `Processed ${finalProgress.total} leads - ${finalProgress.successful} successful, ${finalProgress.failed} failed`,
+        });
+      }
+
+    } catch (error) {
+      console.error("Error in individual enrichment process:", error);
       
+      // Update progress - mark as not running
+      setEnrichmentProgress(prev => ({
+        ...prev,
+        [queryId]: {
+          ...prev[queryId],
+          isRunning: false
+        }
+      }));
+
       toast({
         title: "Error Enriching Leads",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Failed to enrich leads",
         variant: "destructive",
       });
     } finally {
@@ -814,19 +907,69 @@ export default function GetLeads() {
                           )}
                           
                           {searchResults[query.id] && searchResults[query.id].length > 0 && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => bulkEnrichLeads(query.id)}
-                              disabled={enrichingLeads.has(query.id)}
-                            >
-                              {enrichingLeads.has(query.id) ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <Users className="h-4 w-4 mr-2" />
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => enrichLeadsIndividually(query.id)}
+                                disabled={
+                                  enrichingLeads.has(query.id) || 
+                                  !sessionVars || 
+                                  (enrichmentProgress[query.id] && !enrichmentProgress[query.id].isRunning && enrichmentProgress[query.id].completed === enrichmentProgress[query.id].total)
+                                }
+                                title={
+                                  !sessionVars ? "Load results first to enable enrichment" : 
+                                  (enrichmentProgress[query.id] && !enrichmentProgress[query.id].isRunning && enrichmentProgress[query.id].completed === enrichmentProgress[query.id].total) ? "Enrichment completed" : ""
+                                }
+                                className={
+                                  enrichmentProgress[query.id] && !enrichmentProgress[query.id].isRunning && enrichmentProgress[query.id].completed === enrichmentProgress[query.id].total
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                                }
+                              >
+                                {enrichingLeads.has(query.id) ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : enrichmentProgress[query.id] && !enrichmentProgress[query.id].isRunning && enrichmentProgress[query.id].completed === enrichmentProgress[query.id].total ? (
+                                  <Users className="h-4 w-4 mr-2 opacity-50" />
+                                ) : (
+                                  <Users className="h-4 w-4 mr-2" />
+                                )}
+                                {enrichingLeads.has(query.id) 
+                                  ? "Enriching..." 
+                                  : enrichmentProgress[query.id] && !enrichmentProgress[query.id].isRunning && enrichmentProgress[query.id].completed === enrichmentProgress[query.id].total
+                                    ? `Enriched ${searchResults[query.id].length} Leads ✓`
+                                    : `Enrich ${searchResults[query.id].length} Leads`
+                                }
+                              </Button>
+                              
+                              {/* Progress Counter */}
+                              {enrichmentProgress[query.id] && (
+                                <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded border">
+                                  <div className="flex justify-between items-center">
+                                    <span>Progress:</span>
+                                    <span className="font-medium">
+                                      {enrichmentProgress[query.id].completed}/{enrichmentProgress[query.id].total}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center mt-1">
+                                    <span className="text-green-600">✓ Successful: {enrichmentProgress[query.id].successful}</span>
+                                    <span className="text-red-600">✗ Failed: {enrichmentProgress[query.id].failed}</span>
+                                  </div>
+                                  {enrichmentProgress[query.id].isRunning && (
+                                    <div className="mt-1">
+                                      <div className="w-full bg-gray-200 rounded-full h-1">
+                                        <div 
+                                          className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
+                                          style={{
+                                            width: `${(enrichmentProgress[query.id].completed / enrichmentProgress[query.id].total) * 100}%`
+                                          }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               )}
-                              {enrichingLeads.has(query.id) ? "Enriching..." : `Enrich ${searchResults[query.id].length} Leads`}
-                            </Button>
+                            </div>
                           )}
                         </>
                       )}
@@ -988,11 +1131,25 @@ export default function GetLeads() {
               </code>
             </div>
             <div>
-              <span className="font-medium">Bulk Enrich Endpoint:</span> 
+              <span className="font-medium">Individual Lead Enrich Endpoint:</span> 
               <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
-                POST {API_CONFIG.BASE_URL}/api/leads/bulk-enrich
+                POST {API_CONFIG.BASE_URL}/api/leads/{"{leadId}"}/enrich
               </code>
             </div>
+            {sessionVars && (
+              <div>
+                <span className="font-medium">Current Session Variables:</span>
+                <div className="mt-2 bg-blue-50 p-3 rounded-md border border-blue-200">
+                  <div className="grid gap-1 text-xs">
+                    <div><span className="font-medium">Account ID:</span> <code>{sessionVars.account_id}</code></div>
+                    <div><span className="font-medium">Company ID:</span> <code>{sessionVars.company_id}</code></div>
+                    <div><span className="font-medium">Company Banner ID:</span> <code>{sessionVars.company_banner_id}</code></div>
+                    <div><span className="font-medium">Created By:</span> <code>{sessionVars.created_by}</code></div>
+                    <div><span className="font-medium">Source Query ID:</span> <code>{sessionVars.source_query_id}</code></div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div>
               <span className="font-medium">Companies cURL:</span>
               <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
@@ -1001,15 +1158,37 @@ export default function GetLeads() {
               </pre>
             </div>
             <div>
-              <span className="font-medium">Bulk Enrich cURL (example):</span>
+              <span className="font-medium">Individual Lead Enrich cURL (example):</span>
               <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X POST "${API_CONFIG.BASE_URL}/api/leads/bulk-enrich" \\
+{`curl -X POST "${API_CONFIG.BASE_URL}/api/leads/new-lead-123/enrich" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "lead_ids": ["uuid1", "uuid2", "uuid3"]
+    "account_id": "0cba4319-1bac-4399-a616-caf4367790fd",
+    "company_id": "9302e04a-d558-4e9c-b4ae-548c8146082a",
+    "created_by": "406f34af-9d1e-44d2-82c3-d910afe7fb5b",
+    "company_banner_id": "d70b795e-7041-495d-bc4c-2408bfdb7b48",
+    "source_query_id": "26b49b5a-4036-43f4-85a7-fdace10e3b0f",
+    "google_result_id": "906a61d4-9e9b-44df-81a2-0d4b3d685d70"
   }'`}
               </pre>
             </div>
+            {sessionVars && (
+              <div>
+                <span className="font-medium">Current cURL (with session vars):</span>
+                <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`curl -X POST "${API_CONFIG.BASE_URL}/api/leads/{LEAD_ID}/enrich" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "account_id": "${sessionVars.account_id}",
+    "company_id": "${sessionVars.company_id}",
+    "created_by": "${sessionVars.created_by}",
+    "company_banner_id": "${sessionVars.company_banner_id}",
+    "source_query_id": "${sessionVars.source_query_id}",
+    "google_result_id": "{GOOGLE_RESULT_ID}"
+  }'`}
+                </pre>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
