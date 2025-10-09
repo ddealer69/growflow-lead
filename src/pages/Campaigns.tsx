@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search } from "lucide-react";
+import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
@@ -51,11 +51,14 @@ interface Campaign {
   id: string;
   account_id: string;
   company_id: string;
-  banner_id: string;
+  company_banner_id: string;
   smtp_credential_id: string;
   name: string;
-  subject: string;
-  email_template: string;
+  campaign_type: string;
+  subject_template: string;
+  body_template: string;
+  send_rate_per_hour: number;
+  max_retries: number;
   status: "draft" | "running" | "paused" | "completed" | "failed";
   scheduled_at?: string;
   total_recipients: number;
@@ -102,10 +105,13 @@ interface SmtpCredentialsResponse {
 
 interface CreateCampaignForm {
   name: string;
-  subject: string;
-  email_template: string;
-  banner_id: string;
+  subject_template: string;
+  body_template: string;
+  company_banner_id: string;
   smtp_credential_id: string;
+  campaign_type: string;
+  send_rate_per_hour: number;
+  max_retries: number;
   scheduled_at: string;
 }
 
@@ -124,14 +130,18 @@ export default function Campaigns() {
   const [loadingSmtp, setLoadingSmtp] = useState(false);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [creatingCampaign, setCreatingCampaign] = useState(false);
+  const [deletingCampaign, setDeletingCampaign] = useState<string | null>(null);
   const [showLeadSelection, setShowLeadSelection] = useState(false);
   const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
-    subject: "",
-    email_template: "",
-    banner_id: "",
+    subject_template: "",
+    body_template: "",
+    company_banner_id: "",
     smtp_credential_id: "",
+    campaign_type: "email",
+    send_rate_per_hour: 50,
+    max_retries: 3,
     scheduled_at: ""
   });
 
@@ -337,9 +347,79 @@ export default function Campaigns() {
   const fetchCampaigns = async (companyId: string) => {
     setLoadingCampaigns(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/companies/${companyId}`);
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/companies/${companyId}`);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error fetching campaigns, using mock data:', networkError);
+        setCampaigns([
+          {
+            id: 'mock-campaign-1',
+            account_id: accountId || 'mock-account',
+            company_id: companyId,
+            company_banner_id: 'mock-banner-1',
+            smtp_credential_id: 'mock-smtp-1',
+            name: 'Demo Email Campaign',
+            campaign_type: 'email',
+            subject_template: 'Welcome to {{company_name}}!',
+            body_template: '<h1>Hello {{contact_name}}</h1><p>Welcome to our platform!</p>',
+            send_rate_per_hour: 50,
+            max_retries: 3,
+            status: 'draft' as const,
+            scheduled_at: null,
+            total_recipients: 0,
+            sent_count: 0,
+            delivered_count: 0,
+            opened_count: 0,
+            clicked_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]);
+        toast({
+          title: "Demo Mode",
+          description: "Showing demo campaigns (backend not available)",
+        });
+        setLoadingCampaigns(false);
+        return;
+      }
 
       if (!response.ok) {
+        // If API is not available, use mock data for development
+        if (response.status === 404) {
+          console.warn('Campaign API not available, using mock data');
+          setCampaigns([
+            {
+              id: 'mock-campaign-1',
+              account_id: accountId || 'mock-account',
+              company_id: companyId,
+              company_banner_id: 'mock-banner-1',
+              smtp_credential_id: 'mock-smtp-1',
+              name: 'Demo Email Campaign',
+              campaign_type: 'email',
+              subject_template: 'Welcome to {{company_name}}!',
+              body_template: '<h1>Hello {{contact_name}}</h1><p>Welcome to our platform!</p>',
+              send_rate_per_hour: 50,
+              max_retries: 3,
+              status: 'draft' as const,
+              scheduled_at: null,
+              total_recipients: 0,
+              sent_count: 0,
+              delivered_count: 0,
+              opened_count: 0,
+              clicked_count: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ]);
+          toast({
+            title: "Info",
+            description: "Showing demo campaigns (API not available)",
+          });
+          setLoadingCampaigns(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -372,9 +452,67 @@ export default function Campaigns() {
   const fetchBanners = async (companyId: string) => {
     setLoadingBanners(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/companies/${companyId}/banners`);
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/companies/${companyId}/banners`);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error fetching banners, using mock data:', networkError);
+        setBanners([
+          {
+            id: 'mock-banner-1',
+            name: 'Demo Company Banner',
+            logo_url: 'https://via.placeholder.com/200x50/007bff/ffffff?text=Demo+Banner',
+            signature: 'Best regards, Demo Company Team',
+            metadata: {},
+            created_by: user?.id || 'mock-user',
+            is_active: true,
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-banner-2', 
+            name: 'Holiday Banner',
+            logo_url: 'https://via.placeholder.com/200x50/ff6b6b/ffffff?text=Holiday+Banner',
+            signature: 'Happy Holidays, Demo Company',
+            metadata: {},
+            created_by: user?.id || 'mock-user',
+            is_active: false,
+            created_at: new Date().toISOString()
+          }
+        ]);
+        setLoadingBanners(false);
+        return;
+      }
 
       if (!response.ok) {
+        // If API is not available, use mock banners for development
+        if (response.status === 404) {
+          console.warn('Banners API not available, using mock data');
+          setBanners([
+            {
+              id: 'mock-banner-1',
+              name: 'Demo Company Banner',
+              logo_url: 'https://via.placeholder.com/200x50/007bff/ffffff?text=Demo+Banner',
+              signature: 'Best regards, Demo Company Team',
+              metadata: {},
+              created_by: user?.id || 'mock-user',
+              is_active: true,
+              created_at: new Date().toISOString()
+            },
+            {
+              id: 'mock-banner-2', 
+              name: 'Holiday Banner',
+              logo_url: 'https://via.placeholder.com/200x50/ff6b6b/ffffff?text=Holiday+Banner',
+              signature: 'Happy Holidays, Demo Company',
+              metadata: {},
+              created_by: user?.id || 'mock-user',
+              is_active: false,
+              created_at: new Date().toISOString()
+            }
+          ]);
+          setLoadingBanners(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -398,9 +536,83 @@ export default function Campaigns() {
     
     setLoadingSmtp(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/accounts/${accountId}/smtp-credentials`);
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/accounts/${accountId}/smtp-credentials`);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error fetching SMTP credentials, using mock data:', networkError);
+        setSmtpCredentials([
+          {
+            id: 'mock-smtp-1',
+            account_id: accountId || 'mock-account',
+            display_name: 'Demo SMTP Server',
+            smtp_host: 'smtp.example.com',
+            smtp_port: 587,
+            username: 'demo@example.com',
+            auth_type: 'password',
+            verified: true,
+            last_verified_at: new Date().toISOString(),
+            rate_limit_per_hour: 100,
+            metadata: {},
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-smtp-2',
+            account_id: accountId || 'mock-account',
+            display_name: 'Backup SMTP Server',
+            smtp_host: 'smtp.backup.com',
+            smtp_port: 465,
+            username: 'backup@example.com',
+            auth_type: 'password',
+            verified: false,
+            last_verified_at: null,
+            rate_limit_per_hour: 50,
+            metadata: {},
+            created_at: new Date().toISOString()
+          }
+        ]);
+        setLoadingSmtp(false);
+        return;
+      }
 
       if (!response.ok) {
+        // If API is not available, use mock SMTP credentials for development
+        if (response.status === 404) {
+          console.warn('SMTP credentials API not available, using mock data');
+          setSmtpCredentials([
+            {
+              id: 'mock-smtp-1',
+              account_id: accountId || 'mock-account',
+              display_name: 'Demo SMTP Server',
+              smtp_host: 'smtp.example.com',
+              smtp_port: 587,
+              username: 'demo@example.com',
+              auth_type: 'password',
+              verified: true,
+              last_verified_at: new Date().toISOString(),
+              rate_limit_per_hour: 100,
+              metadata: {},
+              created_at: new Date().toISOString()
+            },
+            {
+              id: 'mock-smtp-2',
+              account_id: accountId || 'mock-account',
+              display_name: 'Backup SMTP Server',
+              smtp_host: 'smtp.backup.com',
+              smtp_port: 465,
+              username: 'backup@example.com',
+              auth_type: 'password',
+              verified: false,
+              last_verified_at: null,
+              rate_limit_per_hour: 50,
+              metadata: {},
+              created_at: new Date().toISOString()
+            }
+          ]);
+          setLoadingSmtp(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -420,7 +632,9 @@ export default function Campaigns() {
   };
 
   const createCampaign = async () => {
+    console.log('createCampaign called - checking prerequisites');
     if (!selectedCompany || !user?.id || !accountId) {
+      console.log('Missing prerequisites:', { selectedCompany: !!selectedCompany, userId: !!user?.id, accountId: !!accountId });
       toast({
         title: "Error",
         description: "Missing required information to create campaign",
@@ -429,6 +643,7 @@ export default function Campaigns() {
       return;
     }
 
+    console.log('Prerequisites ok, starting campaign creation');
     setCreatingCampaign(true);
     try {
       const campaignData = {
@@ -436,22 +651,127 @@ export default function Campaigns() {
         company_id: selectedCompany.id,
         created_by: user.id,
         name: campaignForm.name,
-        subject: campaignForm.subject,
-        email_template: campaignForm.email_template,
-        banner_id: campaignForm.banner_id,
-        smtp_credential_id: campaignForm.smtp_credential_id,
+        campaign_type: campaignForm.campaign_type,
+        subject_template: campaignForm.subject_template,
+        body_template: campaignForm.body_template,
+        company_banner_id: campaignForm.company_banner_id || null,
+        smtp_credential_id: campaignForm.smtp_credential_id || null,
+        send_rate_per_hour: campaignForm.send_rate_per_hour,
+        max_retries: campaignForm.max_retries,
         scheduled_at: campaignForm.scheduled_at || null
       };
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(campaignData)
-      });
+      let response;
+      try {
+        console.log('Attempting fetch to:', `${API_CONFIG.BASE_URL}/api/campaigns`);
+        console.log('Campaign data:', campaignData);
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(campaignData)
+        });
+        console.log('Fetch successful, response:', response);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error creating campaign, using mock campaign:', networkError);
+        console.log('Creating mock campaign due to network error');
+        const mockCampaign: Campaign = {
+          id: `mock-campaign-${Date.now()}`,
+          account_id: accountId,
+          company_id: selectedCompany.id,
+          company_banner_id: campaignForm.company_banner_id || 'mock-banner',
+          smtp_credential_id: campaignForm.smtp_credential_id || 'mock-smtp',
+          name: campaignForm.name,
+          campaign_type: campaignForm.campaign_type,
+          subject_template: campaignForm.subject_template,
+          body_template: campaignForm.body_template,
+          send_rate_per_hour: campaignForm.send_rate_per_hour,
+          max_retries: campaignForm.max_retries,
+          status: 'draft' as const,
+          scheduled_at: campaignForm.scheduled_at || null,
+          total_recipients: 0,
+          sent_count: 0,
+          delivered_count: 0,
+          opened_count: 0,
+          clicked_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setCampaigns(prev => [...prev, mockCampaign]);
+        setCreatedCampaign(mockCampaign);
+        setShowCreateCampaign(false);
+        setShowLeadSelection(true);
+        setCampaignForm({
+          name: "",
+          subject_template: "",
+          body_template: "",
+          company_banner_id: "",
+          smtp_credential_id: "",
+          campaign_type: "email",
+          send_rate_per_hour: 50,
+          max_retries: 3,
+          scheduled_at: ""
+        });
+        toast({
+          title: "Demo Mode",
+          description: "Mock campaign created successfully (backend not available)",
+        });
+        setCreatingCampaign(false);
+        return;
+      }
 
       if (!response.ok) {
+        // If API is not available, create a mock campaign for development
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Campaign creation API not available, creating mock campaign');
+          const mockCampaign: Campaign = {
+            id: `mock-campaign-${Date.now()}`,
+            account_id: accountId,
+            company_id: selectedCompany.id,
+            company_banner_id: campaignForm.company_banner_id || 'mock-banner',
+            smtp_credential_id: campaignForm.smtp_credential_id || 'mock-smtp',
+            name: campaignForm.name,
+            campaign_type: campaignForm.campaign_type,
+            subject_template: campaignForm.subject_template,
+            body_template: campaignForm.body_template,
+            send_rate_per_hour: campaignForm.send_rate_per_hour,
+            max_retries: campaignForm.max_retries,
+            status: 'draft' as const,
+            scheduled_at: campaignForm.scheduled_at || null,
+            total_recipients: 0,
+            sent_count: 0,
+            delivered_count: 0,
+            opened_count: 0,
+            clicked_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          setCampaigns(prev => [...prev, mockCampaign]);
+          setCreatedCampaign(mockCampaign);
+          setShowCreateCampaign(false);
+          setShowLeadSelection(true);
+          setCampaignForm({
+            name: "",
+            subject_template: "",
+            body_template: "",
+            company_banner_id: "",
+            smtp_credential_id: "",
+            campaign_type: "email",
+            send_rate_per_hour: 50,
+            max_retries: 3,
+            scheduled_at: ""
+          });
+          toast({
+            title: "Demo Mode",
+            description: "Mock campaign created successfully (API not available)",
+          });
+          setCreatingCampaign(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -464,21 +784,24 @@ export default function Campaigns() {
         setShowLeadSelection(true);
         setCampaignForm({
           name: "",
-          subject: "",
-          email_template: "",
-          banner_id: "",
+          subject_template: "",
+          body_template: "",
+          company_banner_id: "",
           smtp_credential_id: "",
+          campaign_type: "email",
+          send_rate_per_hour: 50,
+          max_retries: 3,
           scheduled_at: ""
         });
         toast({
           title: "Success",
-          description: "Campaign created successfully. Now select leads for this campaign.",
+          description: "Campaign created successfully",
         });
       } else {
-        throw new Error(data.message || "Failed to create campaign");
+        throw new Error(data.message || 'Failed to create campaign');
       }
     } catch (error) {
-      console.error("Error creating campaign:", error);
+      console.error('Error creating campaign:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create campaign",
@@ -486,6 +809,71 @@ export default function Campaigns() {
       });
     } finally {
       setCreatingCampaign(false);
+    }
+  };
+
+  const deleteCampaign = async (campaignId: string) => {
+    if (!window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingCampaign(campaignId);
+    try {
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${campaignId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error deleting campaign, using mock deletion:', networkError);
+        setCampaigns(prev => prev.filter(campaign => campaign.id !== campaignId));
+        toast({
+          title: "Demo Mode",
+          description: "Campaign deleted successfully (backend not available)",
+        });
+        setDeletingCampaign(null);
+        return;
+      }
+
+      if (!response.ok) {
+        // If API is not available, remove from local state for development
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Campaign deletion API not available, removing from local state');
+          setCampaigns(prev => prev.filter(campaign => campaign.id !== campaignId));
+          toast({
+            title: "Demo Mode",
+            description: "Campaign deleted successfully (API not available)",
+          });
+          setDeletingCampaign(null);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setCampaigns(prev => prev.filter(campaign => campaign.id !== campaignId));
+        toast({
+          title: "Success",
+          description: "Campaign deleted successfully",
+        });
+      } else {
+        throw new Error(data.message || 'Failed to delete campaign');
+      }
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingCampaign(null);
     }
   };
 
@@ -640,22 +1028,40 @@ export default function Campaigns() {
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <h4 className="font-medium">{campaign.name}</h4>
-                          <p className="text-sm text-muted-foreground mt-1">{campaign.subject}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{campaign.subject_template}</p>
                         </div>
-                        <Badge 
-                          variant={
-                            campaign.status === "running" ? "default" : 
-                            campaign.status === "completed" ? "secondary" : 
-                            campaign.status === "failed" ? "destructive" : 
-                            campaign.status === "paused" ? "outline" : "secondary"
-                          }
-                          className="flex items-center gap-1"
-                        >
-                          {campaign.status === "running" && <Play className="h-3 w-3" />}
-                          {campaign.status === "paused" && <Pause className="h-3 w-3" />}
-                          {campaign.status === "draft" && <Clock className="h-3 w-3" />}
-                          {campaign.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={
+                              campaign.status === "running" ? "default" : 
+                              campaign.status === "completed" ? "secondary" : 
+                              campaign.status === "failed" ? "destructive" : 
+                              campaign.status === "paused" ? "outline" : "secondary"
+                            }
+                            className="flex items-center gap-1"
+                          >
+                            {campaign.status === "running" && <Play className="h-3 w-3" />}
+                            {campaign.status === "paused" && <Pause className="h-3 w-3" />}
+                            {campaign.status === "draft" && <Clock className="h-3 w-3" />}
+                            {campaign.status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteCampaign(campaign.id);
+                            }}
+                            disabled={deletingCampaign === campaign.id}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            {deletingCampaign === campaign.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
@@ -729,12 +1135,12 @@ export default function Campaigns() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="campaign_subject">Email Subject</Label>
+                    <Label htmlFor="campaign_subject">Email Subject Template</Label>
                     <Input
                       id="campaign_subject"
-                      value={campaignForm.subject}
-                      onChange={(e) => setCampaignForm(prev => ({...prev, subject: e.target.value}))}
-                      placeholder="e.g., Exciting updates from our team!"
+                      value={campaignForm.subject_template}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, subject_template: e.target.value}))}
+                      placeholder="e.g., Exciting updates from {{company_name}}!"
                     />
                   </div>
                 </div>
@@ -743,8 +1149,8 @@ export default function Campaigns() {
                   <div>
                     <Label htmlFor="banner_select">Company Banner</Label>
                     <Select 
-                      value={campaignForm.banner_id} 
-                      onValueChange={(value) => setCampaignForm(prev => ({...prev, banner_id: value}))}
+                      value={campaignForm.company_banner_id} 
+                      onValueChange={(value) => setCampaignForm(prev => ({...prev, company_banner_id: value}))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a banner" />
@@ -800,12 +1206,39 @@ export default function Campaigns() {
                   />
                 </div>
 
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="send_rate">Send Rate (emails/hour)</Label>
+                    <Input
+                      id="send_rate"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={campaignForm.send_rate_per_hour}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, send_rate_per_hour: parseInt(e.target.value) || 50}))}
+                      placeholder="50"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="max_retries">Max Retries</Label>
+                    <Input
+                      id="max_retries"
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={campaignForm.max_retries}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, max_retries: parseInt(e.target.value) || 3}))}
+                      placeholder="3"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="email_template">Email Template</Label>
+                  <Label htmlFor="body_template">Email Body Template</Label>
                   <Textarea
-                    id="email_template"
-                    value={campaignForm.email_template}
-                    onChange={(e) => setCampaignForm(prev => ({...prev, email_template: e.target.value}))}
+                    id="body_template"
+                    value={campaignForm.body_template}
+                    onChange={(e) => setCampaignForm(prev => ({...prev, body_template: e.target.value}))}
                     placeholder="Enter your email HTML template or use the template below..."
                     rows={6}
                   />
@@ -814,7 +1247,7 @@ export default function Campaigns() {
                     variant="outline"
                     size="sm"
                     className="mt-2"
-                    onClick={() => setCampaignForm(prev => ({...prev, email_template: demoHtmlTemplate}))}
+                    onClick={() => setCampaignForm(prev => ({...prev, body_template: demoHtmlTemplate}))}
                   >
                     Use Demo Template
                   </Button>
@@ -836,7 +1269,7 @@ export default function Campaigns() {
                   </Button>
                   <Button 
                     onClick={createCampaign} 
-                    disabled={creatingCampaign || !campaignForm.name || !campaignForm.subject || !campaignForm.banner_id || !campaignForm.smtp_credential_id}
+                    disabled={creatingCampaign || !campaignForm.name || !campaignForm.subject_template || !campaignForm.company_banner_id || !campaignForm.smtp_credential_id}
                   >
                     {creatingCampaign && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Create Campaign
@@ -845,10 +1278,10 @@ export default function Campaigns() {
                     variant="secondary"
                     onClick={() => {
                       // This will show the lead selection form after campaign creation
-                      if (!campaignForm.name || !campaignForm.subject) {
+                      if (!campaignForm.name || !campaignForm.subject_template) {
                         toast({
                           title: "Error",
-                          description: "Please fill in campaign name and subject first",
+                          description: "Please fill in campaign name and subject template first",
                           variant: "destructive",
                         });
                         return;
@@ -857,7 +1290,7 @@ export default function Campaigns() {
                       // First create the campaign, then show lead selection
                       createCampaign();
                     }}
-                    disabled={!campaignForm.name || !campaignForm.subject || creatingCampaign}
+                    disabled={!campaignForm.name || !campaignForm.subject_template || creatingCampaign}
                   >
                     {creatingCampaign ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -888,7 +1321,7 @@ export default function Campaigns() {
                     <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
                     <div><span className="font-medium">Campaign ID:</span> <code>{createdCampaign.id}</code></div>
                     <div><span className="font-medium">Campaign Name:</span> {createdCampaign.name}</div>
-                    <div><span className="font-medium">Subject:</span> {createdCampaign.subject}</div>
+                    <div><span className="font-medium">Subject Template:</span> {createdCampaign.subject_template}</div>
                     <div><span className="font-medium">Status:</span> <Badge variant="secondary">{createdCampaign.status}</Badge></div>
                     <div><span className="font-medium">Created:</span> {new Date(createdCampaign.created_at).toLocaleString()}</div>
                   </div>
@@ -1017,7 +1450,7 @@ export default function Campaigns() {
     "account_id": "${accountId}",
     "company_id": "${selectedCompany.id}",
     "name": "${createdCampaign.name}",
-    "subject": "${createdCampaign.subject}"
+    "subject_template": "${createdCampaign.subject_template}"
   }'`}
                       </pre>
                     </div>
