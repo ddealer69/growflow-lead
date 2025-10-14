@@ -780,16 +780,6 @@ export default function GetLeads() {
                 />
               </div>
 
-              {/* Pre-filled values display */}
-              <div className="bg-muted p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Pre-filled Information:</h4>
-                <div className="grid gap-2 text-sm">
-                  <div><span className="font-medium">Account ID:</span> <code>{accountId}</code></div>
-                  <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
-                  <div><span className="font-medium">Created By:</span> <code>{user?.id}</code></div>
-                </div>
-              </div>
-
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowQueryForm(false)}>
                   Cancel
@@ -1004,9 +994,6 @@ export default function GetLeads() {
                                 {result.link}
                               </a>
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{result.snippet}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Lead ID: <code className="bg-background px-1 rounded">{result.id}</code>
-                              </p>
                             </div>
                           ))}
                         </div>
@@ -1116,82 +1103,6 @@ export default function GetLeads() {
           </CardContent>
         </Card>
       )}
-
-      {/* Debug Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>API Debug Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4 text-sm">
-            <div>
-              <span className="font-medium">Companies Endpoint:</span> 
-              <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
-                GET {API_CONFIG.BASE_URL}/accounts/{accountId}/companies-with-banners
-              </code>
-            </div>
-            <div>
-              <span className="font-medium">Individual Lead Enrich Endpoint:</span> 
-              <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
-                POST {API_CONFIG.BASE_URL}/api/leads/{"{leadId}"}/enrich
-              </code>
-            </div>
-            {sessionVars && (
-              <div>
-                <span className="font-medium">Current Session Variables:</span>
-                <div className="mt-2 bg-blue-50 p-3 rounded-md border border-blue-200">
-                  <div className="grid gap-1 text-xs">
-                    <div><span className="font-medium">Account ID:</span> <code>{sessionVars.account_id}</code></div>
-                    <div><span className="font-medium">Company ID:</span> <code>{sessionVars.company_id}</code></div>
-                    <div><span className="font-medium">Company Banner ID:</span> <code>{sessionVars.company_banner_id}</code></div>
-                    <div><span className="font-medium">Created By:</span> <code>{sessionVars.created_by}</code></div>
-                    <div><span className="font-medium">Source Query ID:</span> <code>{sessionVars.source_query_id}</code></div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div>
-              <span className="font-medium">Companies cURL:</span>
-              <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X GET "${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners" \\
-  -H "Content-Type: application/json"`}
-              </pre>
-            </div>
-            <div>
-              <span className="font-medium">Individual Lead Enrich cURL (example):</span>
-              <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X POST "${API_CONFIG.BASE_URL}/api/leads/new-lead-123/enrich" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "account_id": "0cba4319-1bac-4399-a616-caf4367790fd",
-    "company_id": "9302e04a-d558-4e9c-b4ae-548c8146082a",
-    "created_by": "406f34af-9d1e-44d2-82c3-d910afe7fb5b",
-    "company_banner_id": "d70b795e-7041-495d-bc4c-2408bfdb7b48",
-    "source_query_id": "26b49b5a-4036-43f4-85a7-fdace10e3b0f",
-    "google_result_id": "906a61d4-9e9b-44df-81a2-0d4b3d685d70"
-  }'`}
-              </pre>
-            </div>
-            {sessionVars && (
-              <div>
-                <span className="font-medium">Current cURL (with session vars):</span>
-                <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X POST "${API_CONFIG.BASE_URL}/api/leads/{LEAD_ID}/enrich" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "account_id": "${sessionVars.account_id}",
-    "company_id": "${sessionVars.company_id}",
-    "created_by": "${sessionVars.created_by}",
-    "company_banner_id": "${sessionVars.company_banner_id}",
-    "source_query_id": "${sessionVars.source_query_id}",
-    "google_result_id": "{GOOGLE_RESULT_ID}"
-  }'`}
-                </pre>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
@@ -224,6 +225,7 @@ export default function Campaigns() {
   const [loadingCampaignLeads, setLoadingCampaignLeads] = useState(false);
   const [addingLeads, setAddingLeads] = useState(false);
   const [showCampaignLeads, setShowCampaignLeads] = useState(false);
+  const [selectedCampaignForLeads, setSelectedCampaignForLeads] = useState<Campaign | null>(null);
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
     subject_template: "",
@@ -1543,6 +1545,210 @@ export default function Campaigns() {
   return (
     <div className="space-y-6">
       {selectedCompany ? (
+        showCampaignLeads && selectedCampaignForLeads ? (
+          // Campaign Leads Table View Only
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setShowCampaignLeads(false);
+                        setSelectedCampaignForLeads(null);
+                        setCampaignLeads([]);
+                      }}
+                      className="mr-2"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to Campaigns
+                    </Button>
+                    Campaign Leads - {selectedCampaignForLeads.name}
+                  </CardTitle>
+                  <CardDescription>
+                    Manage and monitor leads for campaign "{selectedCampaignForLeads.name}"
+                  </CardDescription>
+                </div>
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    fetchCampaignLeads(selectedCampaignForLeads.id);
+                    toast({
+                      title: "Refreshed",
+                      description: "Campaign leads refreshed",
+                    });
+                  }}
+                  disabled={loadingCampaignLeads}
+                >
+                  {loadingCampaignLeads ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    "Refresh"
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Campaign Summary */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium mb-2 text-blue-800">Campaign Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-blue-700">
+                  <div>
+                    <span className="font-medium">Status:</span>
+                    <Badge className="ml-2" variant={
+                      selectedCampaignForLeads.status === "running" ? "default" : 
+                      selectedCampaignForLeads.status === "completed" ? "secondary" : 
+                      selectedCampaignForLeads.status === "failed" ? "destructive" : 
+                      selectedCampaignForLeads.status === "paused" ? "outline" : "secondary"
+                    }>
+                      {selectedCampaignForLeads.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="font-medium">Total Leads:</span> {campaignLeads.length}
+                  </div>
+                  <div>
+                    <span className="font-medium">Recipients:</span> {selectedCampaignForLeads.total_recipients}
+                  </div>
+                  <div>
+                    <span className="font-medium">Sent:</span> {selectedCampaignForLeads.sent_count}
+                  </div>
+                </div>
+              </div>
+
+              {/* Campaign Leads Table */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Campaign Leads ({campaignLeads.length})</h4>
+                  {loadingCampaignLeads && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                </div>
+                
+                {loadingCampaignLeads ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse border rounded-lg p-4">
+                        <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-muted rounded w-1/2"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : campaignLeads.length > 0 ? (
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Lead</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Company</TableHead>
+                          <TableHead>Contact</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Attempts</TableHead>
+                          <TableHead>Scheduled</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {campaignLeads.map((campaignLead) => {
+                          // Get lead information from the original leads array or use personalization vars
+                          const leadInfo = leads.find(l => l.id === campaignLead.query_id);
+                          const displayName = campaignLead.personalization_vars?.full_name || 
+                                            leadInfo?.full_name || 'Unknown Lead';
+                          const displayTitle = campaignLead.personalization_vars?.title || 
+                                             leadInfo?.title || 'No Title';
+                          const displayCompany = campaignLead.personalization_vars?.company_name || 
+                                               selectedCompany?.name || 'Unknown Company';
+                          const displayLink = campaignLead.personalization_vars?.source_link || 
+                                            leadInfo?.source_link;
+                          
+                          return (
+                            <TableRow key={campaignLead.id}>
+                              <TableCell>
+                                <div className="font-medium">{displayName}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  ID: {campaignLead.query_id}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">{displayTitle}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">{displayCompany}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-1 text-sm">
+                                  {leadInfo?.email && (
+                                    <div className="flex items-center gap-1">
+                                      <Mail className="h-3 w-3" />
+                                      {leadInfo.email}
+                                    </div>
+                                  )}
+                                  {leadInfo?.phone && (
+                                    <div className="text-xs text-muted-foreground">
+                                      📞 {leadInfo.phone}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={
+                                    campaignLead.status === "scheduled" ? "default" : 
+                                    campaignLead.status === "sent" ? "secondary" : 
+                                    campaignLead.status === "failed" ? "destructive" : "outline"
+                                  }
+                                >
+                                  {campaignLead.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">{campaignLead.send_attempts}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-xs">
+                                  {campaignLead.scheduled_at ? 
+                                    new Date(campaignLead.scheduled_at).toLocaleString() : 
+                                    'Not scheduled'
+                                  }
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  {displayLink && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      onClick={() => window.open(displayLink, '_blank')}
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium">No Campaign Leads Found</h3>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      No leads have been added to this campaign yet.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
         // Company Campaign Detail View
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -1691,7 +1897,7 @@ export default function Campaigns() {
                       key={campaign.id} 
                       className="border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
                       onClick={() => {
-                        setCreatedCampaign(campaign);
+                        setSelectedCampaignForLeads(campaign);
                         fetchCampaignLeads(campaign.id);
                         setShowCampaignLeads(true);
                         toast({
@@ -2219,265 +2425,6 @@ export default function Campaigns() {
             </Card>
           )}
 
-          {/* Campaign Leads View */}
-          {showCampaignLeads && createdCampaign && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Campaign Leads - {createdCampaign.name}</CardTitle>
-                <CardDescription>
-                  Manage and monitor leads for campaign "{createdCampaign.name}"
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Campaign Summary */}
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h4 className="font-medium mb-2 text-green-800">Campaign Successfully Created!</h4>
-                  <div className="grid gap-2 text-sm text-green-700">
-                    <div><span className="font-medium">Campaign:</span> {createdCampaign.name}</div>
-                    <div><span className="font-medium">Total Leads Added:</span> {campaignLeads.length}</div>
-                    <div><span className="font-medium">Status:</span> <Badge variant="default">Active</Badge></div>
-                    <div><span className="font-medium">Created:</span> {new Date(createdCampaign.created_at).toLocaleString()}</div>
-                  </div>
-                </div>
-
-                {/* Campaign Leads List */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Campaign Leads ({campaignLeads.length})</h4>
-                    {loadingCampaignLeads && (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                  </div>
-
-                  {/* Debug Information */}
-                  <div className="bg-blue-50 p-3 rounded-lg text-sm">
-                    <h5 className="font-medium mb-2 text-blue-800">Debug Information:</h5>
-                    <div className="text-blue-700">
-                      <div>Campaign ID: {createdCampaign.id}</div>
-                      <div>Original Leads Count: {leads.length}</div>
-                      <div>Campaign Leads Count: {campaignLeads.length}</div>
-                      <div>Selected Company: {selectedCompany?.name}</div>
-                    </div>
-                  </div>
-                  
-                  {loadingCampaignLeads ? (
-                    <div className="space-y-3">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="animate-pulse border rounded-lg p-4">
-                          <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-                          <div className="h-3 bg-muted rounded w-1/2"></div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : campaignLeads.length > 0 ? (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {campaignLeads.map((campaignLead) => {
-                        // Get lead information from the original leads array or use personalization vars
-                        const leadInfo = leads.find(l => l.id === campaignLead.query_id);
-                        const displayName = campaignLead.personalization_vars?.full_name || 
-                                          leadInfo?.full_name || 'Unknown Lead';
-                        const displayTitle = campaignLead.personalization_vars?.title || 
-                                           leadInfo?.title || 'No Title';
-                        const displayCompany = campaignLead.personalization_vars?.company_name || 
-                                             selectedCompany?.name || 'Unknown Company';
-                        const displayLink = campaignLead.personalization_vars?.source_link || 
-                                          leadInfo?.source_link;
-                        
-                        return (
-                        <div 
-                          key={campaignLead.id} 
-                          className="border rounded-lg p-4 hover:border-primary/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h5 className="font-medium text-lg">
-                                  {displayName}
-                                </h5>
-                                <Badge 
-                                  variant={
-                                    campaignLead.status === "scheduled" ? "default" : 
-                                    campaignLead.status === "sent" ? "secondary" : 
-                                    campaignLead.status === "failed" ? "destructive" : "outline"
-                                  }
-                                >
-                                  {campaignLead.status}
-                                </Badge>
-                              </div>
-                              
-                              <p className="text-sm text-muted-foreground mb-1 font-medium">
-                                {displayTitle}
-                              </p>
-                              
-                              <p className="text-sm text-muted-foreground mb-2">
-                                Company: {displayCompany}
-                              </p>
-
-                              {leadInfo?.email && (
-                                <p className="text-sm text-muted-foreground mb-1">
-                                  📧 {leadInfo.email}
-                                </p>
-                              )}
-
-                              {leadInfo?.phone && (
-                                <p className="text-sm text-muted-foreground mb-1">
-                                  📞 {leadInfo.phone}
-                                </p>
-                              )}
-                              
-                              {displayLink && (
-                                <a 
-                                  href={displayLink} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
-                                >
-                                  View LinkedIn Profile <ExternalLink className="h-3 w-3" />
-                                </a>
-                              )}
-                            </div>
-                            
-                            <div className="text-right text-xs text-muted-foreground ml-4">
-                              <div className="mb-1">
-                                <span className="font-medium">Attempts:</span> {campaignLead.send_attempts}
-                              </div>
-                              {campaignLead.scheduled_at && (
-                                <div className="mb-1">
-                                  <span className="font-medium">Scheduled:</span>
-                                  <br />
-                                  {new Date(campaignLead.scheduled_at).toLocaleString()}
-                                </div>
-                              )}
-                              <div>
-                                <span className="font-medium">Added:</span>
-                                <br />
-                                {new Date(campaignLead.created_at).toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Personalization Variables */}
-                          {campaignLead.personalization_vars && Object.keys(campaignLead.personalization_vars).length > 0 && (
-                            <div className="bg-muted p-3 rounded-md mt-3">
-                              <h6 className="text-xs font-medium mb-2">Personalization Variables:</h6>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                {Object.entries(campaignLead.personalization_vars).map(([key, value]) => (
-                                  value && (
-                                    <div key={key}>
-                                      <span className="font-medium capitalize">{key.replace('_', ' ')}:</span>
-                                      <span className="ml-1 text-muted-foreground break-all">{value}</span>
-                                    </div>
-                                  )
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Debug Info */}
-                          <div className="bg-yellow-50 p-2 rounded-md mt-2 text-xs">
-                            <div><span className="font-medium">Lead ID:</span> {campaignLead.query_id}</div>
-                            <div><span className="font-medium">Campaign Lead ID:</span> {campaignLead.id}</div>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium">No Campaign Leads Found</h3>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        No leads have been added to this campaign yet.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Navigation Buttons */}
-                <div className="flex justify-between">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowCampaignLeads(false);
-                      setShowLeadForm(true);
-                    }}
-                  >
-                    Add More Leads
-                  </Button>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline"
-                      onClick={() => {
-                        fetchCampaignLeads(createdCampaign.id);
-                        toast({
-                          title: "Refreshed",
-                          description: "Campaign leads refreshed",
-                        });
-                      }}
-                      disabled={loadingCampaignLeads}
-                    >
-                      {loadingCampaignLeads ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        "Refresh"
-                      )}
-                    </Button>
-                    
-                    <Button 
-                      onClick={() => {
-                        setShowCampaignLeads(false);
-                        setCampaignLeads([]);
-                        setCreatedCampaign(null);
-                        setSelectedLeads([]);
-                        setLeads([]);
-                        toast({
-                          title: "Campaign Complete",
-                          description: "Campaign setup finished successfully!",
-                        });
-                      }}
-                    >
-                      Finish & Return to Campaigns
-                    </Button>
-                  </div>
-                </div>
-
-                {/* API Debug for Campaign Leads */}
-                <div className="bg-muted p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">API Debug - Campaign Leads:</h4>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Create Campaign Lead Endpoint:</span>
-                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
-                        POST {API_CONFIG.BASE_URL}/api/campaign-leads
-                      </code>
-                    </div>
-                    <div>
-                      <span className="font-medium">Get Campaign Leads Endpoint:</span>
-                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
-                        GET {API_CONFIG.BASE_URL}/api/campaign-leads/campaigns/{createdCampaign.id}
-                      </code>
-                    </div>
-                    <div>
-                      <span className="font-medium">Sample Campaign Lead Creation cURL:</span>
-                      <pre className="mt-2 text-xs bg-white p-3 rounded-md overflow-x-auto">
-{`curl -X POST "${API_CONFIG.BASE_URL}/api/campaign-leads" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "campaign_id": "${createdCampaign.id}",
-    "query_id": "lead-id-here",
-    "status": "queued",
-    "send_attempts": 0,
-    "scheduled_at": "${new Date(Date.now() + 60 * 60 * 1000).toISOString()}"
-  }'`}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* HTML Email Template Visualization */}
           <Card>
             <CardHeader>
@@ -2644,6 +2591,7 @@ export default function Campaigns() {
             </CardContent>
           </Card>
         </div>
+        )
       ) : (
         // Companies List View
         <>

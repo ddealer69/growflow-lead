@@ -737,17 +737,7 @@ export default function Companies() {
           </CardContent>
         </Card>
 
-        {/* Raw Data */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Raw Data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto font-mono">
-              {JSON.stringify(selectedCompanyDetail, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
+
 
         {/* Banner Management Dialog */}
         <Dialog open={bannerOpen} onOpenChange={(isOpen) => {
@@ -1388,25 +1378,8 @@ export default function Companies() {
                       <span>Created</span>
                       <span>{new Date(company.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span>ID</span>
-                      <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                        {company.id.slice(0, 8)}...
-                      </code>
-                    </div>
                   </div>
                 </div>
-
-                {/* Expandable Full Data */}
-                <details className="group/details">
-                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-primary flex items-center gap-1">
-                    <span>View Full Data</span>
-                    <span className="transition-transform group-open/details:rotate-90">▶</span>
-                  </summary>
-                  <pre className="mt-3 bg-muted p-3 rounded-md text-xs overflow-x-auto font-mono">
-                    {JSON.stringify(company, null, 2)}
-                  </pre>
-                </details>
               </CardContent>
             </Card>
           ))}
