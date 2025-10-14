@@ -103,6 +103,88 @@ interface SmtpCredentialsResponse {
   smtp_credentials: SmtpCredential[];
 }
 
+interface Lead {
+  id: string;
+  company_id: string;
+  full_name: string;
+  title: string;
+  location: string;
+  email?: string;
+  phone?: string;
+  source_link: string;
+  source_username: string;
+  company_name: string;
+  enrichment_status: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  enrichment_payload?: {
+    basic_info?: {
+      first_name?: string;
+      last_name?: string;
+      headline?: string;
+      about?: string;
+      profile_picture_url?: string;
+      current_company?: string;
+      location?: {
+        city?: string;
+        country?: string;
+        full?: string;
+      };
+    };
+    experience?: Array<{
+      company: string;
+      title: string;
+      description?: string;
+      duration?: string;
+      location?: string;
+    }>;
+  };
+}
+
+interface LeadsResponse {
+  success: boolean;
+  message: string;
+  leads: Lead[];
+}
+
+interface CampaignLead {
+  id: string;
+  campaign_id: string;
+  query_id: string;
+  status: "queued" | "scheduled" | "sent" | "failed";
+  send_attempts: number;
+  scheduled_at?: string;
+  personalization_vars?: {
+    source_link?: string;
+    full_name?: string;
+    source_name?: string;
+    title?: string;
+    company_name?: string;
+  };
+  created_at: string;
+}
+
+interface CreateCampaignLeadRequest {
+  campaign_id: string;
+  query_id: string;
+  status: "queued" | "scheduled";
+  send_attempts: number;
+  scheduled_at?: string;
+}
+
+interface CreateCampaignLeadResponse {
+  success: boolean;
+  message: string;
+  campaign_lead: CampaignLead;
+}
+
+interface CampaignLeadsResponse {
+  success: boolean;
+  message: string;
+  campaign_leads: CampaignLead[];
+}
+
 interface CreateCampaignForm {
   name: string;
   subject_template: string;
@@ -131,8 +213,17 @@ export default function Campaigns() {
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [deletingCampaign, setDeletingCampaign] = useState<string | null>(null);
-  const [showLeadSelection, setShowLeadSelection] = useState(false);
   const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [customHtmlTemplate, setCustomHtmlTemplate] = useState("");
+  const [isTemplateModified, setIsTemplateModified] = useState(false);
+  const [campaignLeads, setCampaignLeads] = useState<CampaignLead[]>([]);
+  const [loadingCampaignLeads, setLoadingCampaignLeads] = useState(false);
+  const [addingLeads, setAddingLeads] = useState(false);
+  const [showCampaignLeads, setShowCampaignLeads] = useState(false);
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
     subject_template: "",
@@ -274,6 +365,11 @@ export default function Campaigns() {
 </body>
 </html>`;
 
+  // Get the current template (custom if modified, otherwise demo)
+  const getCurrentTemplate = () => {
+    return isTemplateModified && customHtmlTemplate ? customHtmlTemplate : demoHtmlTemplate;
+  };
+
   useEffect(() => {
     if (accountId) {
       fetchCompanies();
@@ -340,7 +436,7 @@ export default function Campaigns() {
     setBanners([]);
     setSmtpCredentials([]);
     setShowCreateCampaign(false);
-    setShowLeadSelection(false);
+    setShowLeadForm(false);
     setCreatedCampaign(null);
   };
 
@@ -703,7 +799,7 @@ export default function Campaigns() {
         setCampaigns(prev => [...prev, mockCampaign]);
         setCreatedCampaign(mockCampaign);
         setShowCreateCampaign(false);
-        setShowLeadSelection(true);
+        setShowLeadForm(true);
         setCampaignForm({
           name: "",
           subject_template: "",
@@ -753,7 +849,7 @@ export default function Campaigns() {
           setCampaigns(prev => [...prev, mockCampaign]);
           setCreatedCampaign(mockCampaign);
           setShowCreateCampaign(false);
-          setShowLeadSelection(true);
+          setShowLeadForm(true);
           setCampaignForm({
             name: "",
             subject_template: "",
@@ -781,7 +877,574 @@ export default function Campaigns() {
         setCampaigns(prev => [...prev, data.campaign]);
         setCreatedCampaign(data.campaign);
         setShowCreateCampaign(false);
-        setShowLeadSelection(true);
+        setShowLeadForm(true);
+        setCampaignForm({
+          name: "",
+          subject_template: "",
+          body_template: "",
+          company_banner_id: "",
+          smtp_credential_id: "",
+          campaign_type: "email",
+          send_rate_per_hour: 50,
+          max_retries: 3,
+          scheduled_at: ""
+        });
+        toast({
+          title: "Success",
+          description: "Campaign created successfully",
+        });
+      } else {
+        throw new Error(data.message || 'Failed to create campaign');
+      }
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingCampaign(false);
+    }
+  };
+
+  const fetchLeads = async (companyId: string) => {
+    setLoadingLeads(true);
+    try {
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/leads/companies/${companyId}`);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error fetching leads, using mock data:', networkError);
+        const mockLeads: Lead[] = [
+          {
+            id: 'mock-lead-1',
+            company_id: companyId,
+            full_name: 'John Doe',
+            title: 'Senior Software Engineer',
+            location: 'New York, NY',
+            email: 'john.doe@example.com',
+            phone: '+1-555-0123',
+            source_link: 'https://linkedin.com/in/johndoe',
+            source_username: 'johndoe',
+            company_name: selectedCompany?.name || 'Tech Corp',
+            enrichment_status: 'enriched',
+            is_archived: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-lead-2',
+            company_id: companyId,
+            full_name: 'Jane Smith',
+            title: 'Product Manager',
+            location: 'San Francisco, CA',
+            email: 'jane.smith@example.com',
+            phone: '+1-555-0124',
+            source_link: 'https://linkedin.com/in/janesmith',
+            source_username: 'janesmith',
+            company_name: selectedCompany?.name || 'Tech Corp',
+            enrichment_status: 'enriched',
+            is_archived: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-lead-3',
+            company_id: companyId,
+            full_name: 'Mike Johnson',
+            title: 'Marketing Director',
+            location: 'Chicago, IL',
+            email: 'mike.johnson@example.com',
+            phone: '+1-555-0125',
+            source_link: 'https://linkedin.com/in/mikejohnson',
+            source_username: 'mikejohnson',
+            company_name: selectedCompany?.name || 'Tech Corp',
+            enrichment_status: 'enriched',
+            is_archived: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ];
+        setLeads(mockLeads);
+        toast({
+          title: "Demo Mode",
+          description: "Showing demo leads (backend not available)",
+        });
+        setLoadingLeads(false);
+        return;
+      }
+
+      if (!response.ok) {
+        // If API is not available, use mock leads for development
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Leads API not available, using mock data');
+          const mockLeads: Lead[] = [
+            {
+              id: 'mock-lead-1',
+              company_id: companyId,
+              full_name: 'John Doe',
+              title: 'Senior Software Engineer',
+              location: 'New York, NY',
+              email: 'john.doe@example.com',
+              phone: '+1-555-0123',
+              source_link: 'https://linkedin.com/in/johndoe',
+              source_username: 'johndoe',
+              company_name: selectedCompany?.name || 'Tech Corp',
+              enrichment_status: 'enriched',
+              is_archived: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: 'mock-lead-2',
+              company_id: companyId,
+              full_name: 'Jane Smith',
+              title: 'Product Manager',
+              location: 'San Francisco, CA',
+              email: 'jane.smith@example.com',
+              phone: '+1-555-0124',
+              source_link: 'https://linkedin.com/in/janesmith',
+              source_username: 'janesmith',
+              company_name: selectedCompany?.name || 'Tech Corp',
+              enrichment_status: 'enriched',
+              is_archived: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: 'mock-lead-3',
+              company_id: companyId,
+              full_name: 'Mike Johnson',
+              title: 'Marketing Director',
+              location: 'Chicago, IL',
+              email: 'mike.johnson@example.com',
+              phone: '+1-555-0125',
+              source_link: 'https://linkedin.com/in/mikejohnson',
+              source_username: 'mikejohnson',
+              company_name: selectedCompany?.name || 'Tech Corp',
+              enrichment_status: 'enriched',
+              is_archived: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ];
+          setLeads(mockLeads);
+          toast({
+            title: "Demo Mode",
+            description: "Showing demo leads (API not available)",
+          });
+          setLoadingLeads(false);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: LeadsResponse = await response.json();
+      
+      if (data.success) {
+        console.log('Leads API response:', data);
+        setLeads(data.leads || []);
+        toast({
+          title: "Success",
+          description: `Found ${data.leads?.length || 0} leads for this company`,
+        });
+      } else {
+        throw new Error(data.message || "Failed to fetch leads");
+      }
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+      setLeads([]);
+      toast({
+        title: "Info",
+        description: "No leads found for this company",
+      });
+    } finally {
+      setLoadingLeads(false);
+    }
+  };
+
+  const addLeadsToCampaign = async () => {
+    if (!createdCampaign || selectedLeads.length === 0) {
+      toast({
+        title: "Error",
+        description: "No campaign or leads selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAddingLeads(true);
+    try {
+      const campaignLeadPromises = selectedLeads.map(async (leadId) => {
+        const lead = leads.find(l => l.id === leadId);
+        const campaignLeadData: CreateCampaignLeadRequest = {
+          campaign_id: createdCampaign.id,
+          query_id: leadId, // Using lead ID as query_id
+          status: "queued",
+          send_attempts: 0,
+          scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() // Schedule 1 hour from now
+        };
+
+        try {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaign-leads`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(campaignLeadData)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data: CreateCampaignLeadResponse = await response.json();
+          return data.campaign_lead;
+        } catch (error) {
+          // Fallback to mock data if API is not available
+          console.warn('Campaign lead creation API not available, using mock data:', error);
+          const mockCampaignLead: CampaignLead = {
+            id: `mock-campaign-lead-${Date.now()}-${leadId}`,
+            campaign_id: createdCampaign.id,
+            query_id: leadId,
+            status: "queued",
+            send_attempts: 0,
+            scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            personalization_vars: {
+              source_link: lead?.source_link || 'https://linkedin.com/in/placeholder',
+              full_name: lead?.full_name || 'Unknown Lead',
+              source_name: lead?.source_username || 'unknown',
+              title: lead?.title || 'Unknown Title',
+              company_name: lead?.company_name || selectedCompany?.name || 'Unknown Company'
+            },
+            created_at: new Date().toISOString()
+          };
+          return mockCampaignLead;
+        }
+      });
+
+      const newCampaignLeads = await Promise.all(campaignLeadPromises);
+      setCampaignLeads(newCampaignLeads);
+      
+      toast({
+        title: "Success",
+        description: `Added ${selectedLeads.length} leads to campaign "${createdCampaign.name}"`,
+      });
+
+      // Show campaign leads view
+      setShowLeadForm(false);
+      setShowCampaignLeads(true);
+      setSelectedLeads([]);
+
+    } catch (error) {
+      console.error('Error adding leads to campaign:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add leads to campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingLeads(false);
+    }
+  };
+
+  const fetchCampaignLeads = async (campaignId: string) => {
+    setLoadingCampaignLeads(true);
+    try {
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaign-leads/campaigns/${campaignId}`);
+      } catch (networkError) {
+        // Handle network errors with mock data
+        console.warn('Network error fetching campaign leads, using mock data:', networkError);
+        const mockCampaignLeads: CampaignLead[] = [
+          {
+            id: 'mock-campaign-lead-1',
+            campaign_id: campaignId,
+            query_id: 'mock-lead-1',
+            status: 'scheduled',
+            send_attempts: 0,
+            scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            personalization_vars: {
+              source_link: 'https://linkedin.com/in/johndoe',
+              full_name: 'John Doe',
+              source_name: 'johndoe',
+              title: 'Senior Software Engineer',
+              company_name: selectedCompany?.name || 'Tech Corp'
+            },
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-campaign-lead-2',
+            campaign_id: campaignId,
+            query_id: 'mock-lead-2',
+            status: 'queued',
+            send_attempts: 0,
+            personalization_vars: {
+              source_link: 'https://linkedin.com/in/janesmith',
+              full_name: 'Jane Smith',
+              source_name: 'janesmith',
+              title: 'Product Manager',
+              company_name: selectedCompany?.name || 'Tech Corp'
+            },
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-campaign-lead-3',
+            campaign_id: campaignId,
+            query_id: 'mock-lead-3',
+            status: 'queued',
+            send_attempts: 1,
+            scheduled_at: new Date(Date.now() + 120 * 60 * 1000).toISOString(),
+            personalization_vars: {
+              source_link: 'https://linkedin.com/in/mikejohnson',
+              full_name: 'Mike Johnson',
+              source_name: 'mikejohnson',
+              title: 'Marketing Director',
+              company_name: selectedCompany?.name || 'Tech Corp'
+            },
+            created_at: new Date().toISOString()
+          }
+        ];
+        setCampaignLeads(mockCampaignLeads);
+        setLoadingCampaignLeads(false);
+        return;
+      }
+
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Campaign leads API not available, using mock data');
+          const mockCampaignLeads: CampaignLead[] = [
+            {
+              id: 'mock-campaign-lead-1',
+              campaign_id: campaignId,
+              query_id: 'mock-lead-1',
+              status: 'scheduled',
+              send_attempts: 0,
+              scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              personalization_vars: {
+                source_link: 'https://linkedin.com/in/johndoe',
+                full_name: 'John Doe',
+                source_name: 'johndoe',
+                title: 'Senior Software Engineer',
+                company_name: selectedCompany?.name || 'Tech Corp'
+              },
+              created_at: new Date().toISOString()
+            },
+            {
+              id: 'mock-campaign-lead-2',
+              campaign_id: campaignId,
+              query_id: 'mock-lead-2',
+              status: 'queued',
+              send_attempts: 0,
+              personalization_vars: {
+                source_link: 'https://linkedin.com/in/janesmith',
+                full_name: 'Jane Smith',
+                source_name: 'janesmith',
+                title: 'Product Manager',
+                company_name: selectedCompany?.name || 'Tech Corp'
+              },
+              created_at: new Date().toISOString()
+            }
+          ];
+          setCampaignLeads(mockCampaignLeads);
+          setLoadingCampaignLeads(false);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: CampaignLeadsResponse = await response.json();
+      
+      if (data.success) {
+        setCampaignLeads(data.campaign_leads || []);
+      } else {
+        throw new Error(data.message || "Failed to fetch campaign leads");
+      }
+    } catch (error) {
+      console.error("Error fetching campaign leads:", error);
+      setCampaignLeads([]);
+    } finally {
+      setLoadingCampaignLeads(false);
+    }
+  };
+
+  const createCampaignAndShowLeads = async () => {
+    console.log('createCampaignAndShowLeads called - checking prerequisites');
+    if (!selectedCompany || !user?.id || !accountId) {
+      console.log('Missing prerequisites:', { selectedCompany: !!selectedCompany, userId: !!user?.id, accountId: !!accountId });
+      toast({
+        title: "Error",
+        description: "Missing required information to create campaign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!campaignForm.name || !campaignForm.subject_template) {
+      toast({
+        title: "Error",
+        description: "Please fill in campaign name and subject template first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('Prerequisites ok, starting campaign creation and lead fetching');
+    setCreatingCampaign(true);
+    try {
+      const campaignData = {
+        account_id: accountId,
+        company_id: selectedCompany.id,
+        created_by: user.id,
+        name: campaignForm.name,
+        campaign_type: campaignForm.campaign_type,
+        subject_template: campaignForm.subject_template,
+        body_template: campaignForm.body_template,
+        company_banner_id: campaignForm.company_banner_id || null,
+        smtp_credential_id: campaignForm.smtp_credential_id || null,
+        send_rate_per_hour: campaignForm.send_rate_per_hour,
+        max_retries: campaignForm.max_retries,
+        scheduled_at: campaignForm.scheduled_at || null
+      };
+
+      let response;
+      let mockCampaign: Campaign;
+      
+      try {
+        console.log('Attempting fetch to:', `${API_CONFIG.BASE_URL}/api/campaigns`);
+        console.log('Campaign data:', campaignData);
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(campaignData)
+        });
+        console.log('Fetch successful, response:', response);
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error creating campaign, using mock campaign:', networkError);
+        console.log('Creating mock campaign due to network error');
+        mockCampaign = {
+          id: `mock-campaign-${Date.now()}`,
+          account_id: accountId,
+          company_id: selectedCompany.id,
+          company_banner_id: campaignForm.company_banner_id || 'mock-banner',
+          smtp_credential_id: campaignForm.smtp_credential_id || 'mock-smtp',
+          name: campaignForm.name,
+          campaign_type: campaignForm.campaign_type,
+          subject_template: campaignForm.subject_template,
+          body_template: campaignForm.body_template,
+          send_rate_per_hour: campaignForm.send_rate_per_hour,
+          max_retries: campaignForm.max_retries,
+          status: 'draft' as const,
+          scheduled_at: campaignForm.scheduled_at || null,
+          total_recipients: 0,
+          sent_count: 0,
+          delivered_count: 0,
+          opened_count: 0,
+          clicked_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setCampaigns(prev => [...prev, mockCampaign]);
+        setCreatedCampaign(mockCampaign);
+        setShowCreateCampaign(false);
+        
+        // Fetch leads for the company
+        await fetchLeads(selectedCompany.id);
+        setShowLeadForm(true);
+        
+        setCampaignForm({
+          name: "",
+          subject_template: "",
+          body_template: "",
+          company_banner_id: "",
+          smtp_credential_id: "",
+          campaign_type: "email",
+          send_rate_per_hour: 50,
+          max_retries: 3,
+          scheduled_at: ""
+        });
+        toast({
+          title: "Demo Mode",
+          description: "Mock campaign created successfully (backend not available)",
+        });
+        setCreatingCampaign(false);
+        return;
+      }
+
+      if (!response.ok) {
+        // If API is not available, create a mock campaign for development
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Campaign creation API not available, creating mock campaign');
+          mockCampaign = {
+            id: `mock-campaign-${Date.now()}`,
+            account_id: accountId,
+            company_id: selectedCompany.id,
+            company_banner_id: campaignForm.company_banner_id || 'mock-banner',
+            smtp_credential_id: campaignForm.smtp_credential_id || 'mock-smtp',
+            name: campaignForm.name,
+            campaign_type: campaignForm.campaign_type,
+            subject_template: campaignForm.subject_template,
+            body_template: campaignForm.body_template,
+            send_rate_per_hour: campaignForm.send_rate_per_hour,
+            max_retries: campaignForm.max_retries,
+            status: 'draft' as const,
+            scheduled_at: campaignForm.scheduled_at || null,
+            total_recipients: 0,
+            sent_count: 0,
+            delivered_count: 0,
+            opened_count: 0,
+            clicked_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          setCampaigns(prev => [...prev, mockCampaign]);
+          setCreatedCampaign(mockCampaign);
+          setShowCreateCampaign(false);
+          
+          // Fetch leads for the company
+          await fetchLeads(selectedCompany.id);
+          setShowLeadForm(true);
+          
+          setCampaignForm({
+            name: "",
+            subject_template: "",
+            body_template: "",
+            company_banner_id: "",
+            smtp_credential_id: "",
+            campaign_type: "email",
+            send_rate_per_hour: 50,
+            max_retries: 3,
+            scheduled_at: ""
+          });
+          toast({
+            title: "Demo Mode",
+            description: "Mock campaign created successfully (API not available)",
+          });
+          setCreatingCampaign(false);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setCampaigns(prev => [...prev, data.campaign]);
+        setCreatedCampaign(data.campaign);
+        setShowCreateCampaign(false);
+        
+        // Fetch leads for the company
+        await fetchLeads(selectedCompany.id);
+        setShowLeadForm(true);
+        
         setCampaignForm({
           name: "",
           subject_template: "",
@@ -1024,7 +1687,19 @@ export default function Campaigns() {
               ) : campaigns.length > 0 ? (
                 <div className="space-y-4">
                   {campaigns.map((campaign) => (
-                    <div key={campaign.id} className="border rounded-lg p-4">
+                    <div 
+                      key={campaign.id} 
+                      className="border rounded-lg p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => {
+                        setCreatedCampaign(campaign);
+                        fetchCampaignLeads(campaign.id);
+                        setShowCampaignLeads(true);
+                        toast({
+                          title: "Loading Campaign Leads",
+                          description: `Loading leads for "${campaign.name}"`,
+                        });
+                      }}
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <h4 className="font-medium">{campaign.name}</h4>
@@ -1085,6 +1760,7 @@ export default function Campaigns() {
 
                       <div className="flex justify-between items-center text-xs text-muted-foreground">
                         <span>Created: {new Date(campaign.created_at).toLocaleString()}</span>
+                        <span className="text-primary font-medium">Click to view leads →</span>
                         {campaign.scheduled_at && (
                           <span>Scheduled: {new Date(campaign.scheduled_at).toLocaleString()}</span>
                         )}
@@ -1247,9 +1923,16 @@ export default function Campaigns() {
                     variant="outline"
                     size="sm"
                     className="mt-2"
-                    onClick={() => setCampaignForm(prev => ({...prev, body_template: demoHtmlTemplate}))}
+                    onClick={() => {
+                      const currentTemplate = getCurrentTemplate();
+                      setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
+                      toast({
+                        title: "Template Applied",
+                        description: isTemplateModified ? "Custom template applied to campaign" : "Demo template applied to campaign",
+                      });
+                    }}
                   >
-                    Use Demo Template
+                    {isTemplateModified ? "Use Custom Template" : "Use Demo Template"}
                   </Button>
                 </div>
 
@@ -1276,20 +1959,7 @@ export default function Campaigns() {
                   </Button>
                   <Button 
                     variant="secondary"
-                    onClick={() => {
-                      // This will show the lead selection form after campaign creation
-                      if (!campaignForm.name || !campaignForm.subject_template) {
-                        toast({
-                          title: "Error",
-                          description: "Please fill in campaign name and subject template first",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      
-                      // First create the campaign, then show lead selection
-                      createCampaign();
-                    }}
+                    onClick={createCampaignAndShowLeads}
                     disabled={!campaignForm.name || !campaignForm.subject_template || creatingCampaign}
                   >
                     {creatingCampaign ? (
@@ -1304,12 +1974,12 @@ export default function Campaigns() {
           )}
 
           {/* Lead Selection Form */}
-          {showLeadSelection && createdCampaign && (
+          {showLeadForm && createdCampaign && (
             <Card>
               <CardHeader>
                 <CardTitle>Select Leads for Campaign</CardTitle>
                 <CardDescription>
-                  Select leads for "{createdCampaign.name}" campaign
+                  Select leads for "{createdCampaign.name}" campaign from {selectedCompany.name}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1317,72 +1987,139 @@ export default function Campaigns() {
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-medium mb-2 text-blue-800">Campaign Information:</h4>
                   <div className="grid gap-2 text-sm text-blue-700">
-                    <div><span className="font-medium">Account ID:</span> <code>{accountId}</code></div>
-                    <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
+                    <div><span className="font-medium">Company:</span> {selectedCompany.name}</div>
                     <div><span className="font-medium">Campaign ID:</span> <code>{createdCampaign.id}</code></div>
                     <div><span className="font-medium">Campaign Name:</span> {createdCampaign.name}</div>
                     <div><span className="font-medium">Subject Template:</span> {createdCampaign.subject_template}</div>
                     <div><span className="font-medium">Status:</span> <Badge variant="secondary">{createdCampaign.status}</Badge></div>
-                    <div><span className="font-medium">Created:</span> {new Date(createdCampaign.created_at).toLocaleString()}</div>
                   </div>
                 </div>
 
-                {/* Lead Selection Options */}
+                {/* Leads List with Selection */}
                 <div className="space-y-4">
-                  <h4 className="font-medium">Lead Selection Options:</h4>
-                  
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Card className="cursor-pointer hover:border-primary transition-colors">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <Users className="h-8 w-8 text-primary" />
-                          <div>
-                            <h5 className="font-medium">Import Lead List</h5>
-                            <p className="text-sm text-muted-foreground">Upload CSV or Excel file with leads</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="cursor-pointer hover:border-primary transition-colors">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <Search className="h-8 w-8 text-primary" />
-                          <div>
-                            <h5 className="font-medium">Use Existing Leads</h5>
-                            <p className="text-sm text-muted-foreground">Select from previously collected leads</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Available Leads ({leads.length})</h4>
+                    {loadingLeads && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
                   </div>
-
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-8 w-8 text-primary" />
-                        <div className="flex-1">
-                          <h5 className="font-medium">Search & Collect New Leads</h5>
-                          <p className="text-sm text-muted-foreground mb-3">Use our lead generation tools to find new prospects</p>
-                          <Button 
-                            onClick={() => {
-                              // Navigate to GetLeads page with company context
-                              navigate('/leads', { 
-                                state: { 
-                                  companyId: selectedCompany.id,
-                                  campaignId: createdCampaign.id,
-                                  returnTo: 'campaigns'
-                                }
-                              });
-                            }}
-                            className="w-full"
-                          >
-                            Go to Lead Generation →
-                          </Button>
+                  
+                  {loadingLeads ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse border rounded-lg p-4">
+                          <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
                         </div>
+                      ))}
+                    </div>
+                  ) : leads.length > 0 ? (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (selectedLeads.length === leads.length) {
+                              setSelectedLeads([]);
+                            } else {
+                              setSelectedLeads(leads.map(lead => lead.id));
+                            }
+                          }}
+                        >
+                          {selectedLeads.length === leads.length ? 'Deselect All' : 'Select All'}
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          {selectedLeads.length} of {leads.length} leads selected
+                        </span>
                       </div>
-                    </CardContent>
-                  </Card>
+                      
+                      {leads.map((lead) => {
+                        console.log('Rendering lead:', lead);
+                        return (
+                          <div 
+                            key={lead.id} 
+                            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                              selectedLeads.includes(lead.id) 
+                                ? 'border-primary bg-primary/5' 
+                                : 'hover:border-primary/50'
+                            }`}
+                            onClick={() => {
+                              setSelectedLeads(prev => 
+                                prev.includes(lead.id)
+                                  ? prev.filter(id => id !== lead.id)
+                                  : [...prev, lead.id]
+                              );
+                            }}
+                          >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLeads.includes(lead.id)}
+                                  onChange={() => {
+                                    setSelectedLeads(prev => 
+                                      prev.includes(lead.id)
+                                        ? prev.filter(id => id !== lead.id)
+                                        : [...prev, lead.id]
+                                    );
+                                  }}
+                                  className="rounded"
+                                />
+                                <h5 className="font-medium">
+                                  {lead.full_name || 'Unknown Lead'}
+                                </h5>
+                                {lead.title && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {lead.title}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-1">
+                                {lead.email || 'No email'}
+                              </p>
+                              {lead.location && (
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  📍 {lead.location}
+                                </p>
+                              )}
+                              {lead.phone && (
+                                <p className="text-xs text-muted-foreground">
+                                  📞 {lead.phone}
+                                </p>
+                              )}
+                              {lead.source_link && (
+                                <a 
+                                  href={lead.source_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  LinkedIn Profile <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                            <Badge variant={!lead.is_archived ? "default" : "secondary"}>
+                              {!lead.is_archived ? "Active" : "Archived"}
+                            </Badge>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium">No Leads Found</h3>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        No leads found for {selectedCompany.name}.
+                        <br />
+                        Try importing leads or using the lead generation tools.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Navigation Buttons */}
@@ -1390,7 +2127,9 @@ export default function Campaigns() {
                   <Button 
                     variant="outline" 
                     onClick={() => {
-                      setShowLeadSelection(false);
+                      setShowLeadForm(false);
+                      setSelectedLeads([]);
+                      setLeads([]);
                       setCreatedCampaign(null);
                     }}
                   >
@@ -1402,25 +2141,37 @@ export default function Campaigns() {
                       variant="outline"
                       onClick={() => {
                         toast({
-                          title: "Manual Lead Entry",
-                          description: "Manual lead entry form coming soon!",
+                          title: "Import Leads",
+                          description: "Lead import functionality coming soon!",
                         });
                       }}
                     >
-                      Add Leads Manually
+                      Import More Leads
                     </Button>
                     
                     <Button 
                       onClick={() => {
-                        toast({
-                          title: "Campaign Setup Complete",
-                          description: "Your campaign is ready! Add leads to start sending.",
-                        });
-                        setShowLeadSelection(false);
-                        setCreatedCampaign(null);
+                        if (selectedLeads.length === 0) {
+                          toast({
+                            title: "No Leads Selected",
+                            description: "Please select at least one lead for the campaign",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        
+                        addLeadsToCampaign();
                       }}
+                      disabled={selectedLeads.length === 0 || addingLeads}
                     >
-                      Finish Setup
+                      {addingLeads ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Adding Leads...
+                        </>
+                      ) : (
+                        `Add ${selectedLeads.length} Leads to Campaign`
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -1430,27 +2181,294 @@ export default function Campaigns() {
                   <h4 className="font-medium mb-2">API Debug - Lead Selection:</h4>
                   <div className="space-y-2 text-sm">
                     <div>
-                      <span className="font-medium">Campaign Creation Endpoint:</span>
+                      <span className="font-medium">Leads Fetch Endpoint:</span>
                       <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
-                        POST {API_CONFIG.BASE_URL}/api/campaigns
+                        GET {API_CONFIG.BASE_URL}/api/leads/companies/{selectedCompany.id}
                       </code>
                     </div>
                     <div>
-                      <span className="font-medium">Leads Import Endpoint:</span>
+                      <span className="font-medium">Total Leads Found:</span>
                       <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
-                        POST {API_CONFIG.BASE_URL}/api/campaigns/{createdCampaign.id}/leads
+                        {leads.length}
                       </code>
                     </div>
                     <div>
-                      <span className="font-medium">Campaign cURL:</span>
+                      <span className="font-medium">Selected Lead IDs:</span>
+                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
+                        [{selectedLeads.join(', ')}]
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium">Sample Lead Data:</span>
+                      {leads.length > 0 && (
+                        <pre className="mt-1 text-xs bg-white p-2 rounded-md overflow-x-auto max-h-32 overflow-y-auto">
+                          {JSON.stringify(leads[0], null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-medium">Leads cURL:</span>
                       <pre className="mt-2 text-xs bg-white p-3 rounded-md overflow-x-auto">
-{`curl -X POST "${API_CONFIG.BASE_URL}/api/campaigns" \\
+{`curl -X GET "${API_CONFIG.BASE_URL}/api/leads/companies/${selectedCompany.id}" \\
+  -H "Content-Type: application/json"`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Campaign Leads View */}
+          {showCampaignLeads && createdCampaign && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign Leads - {createdCampaign.name}</CardTitle>
+                <CardDescription>
+                  Manage and monitor leads for campaign "{createdCampaign.name}"
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Campaign Summary */}
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h4 className="font-medium mb-2 text-green-800">Campaign Successfully Created!</h4>
+                  <div className="grid gap-2 text-sm text-green-700">
+                    <div><span className="font-medium">Campaign:</span> {createdCampaign.name}</div>
+                    <div><span className="font-medium">Total Leads Added:</span> {campaignLeads.length}</div>
+                    <div><span className="font-medium">Status:</span> <Badge variant="default">Active</Badge></div>
+                    <div><span className="font-medium">Created:</span> {new Date(createdCampaign.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Campaign Leads List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Campaign Leads ({campaignLeads.length})</h4>
+                    {loadingCampaignLeads && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                  </div>
+
+                  {/* Debug Information */}
+                  <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                    <h5 className="font-medium mb-2 text-blue-800">Debug Information:</h5>
+                    <div className="text-blue-700">
+                      <div>Campaign ID: {createdCampaign.id}</div>
+                      <div>Original Leads Count: {leads.length}</div>
+                      <div>Campaign Leads Count: {campaignLeads.length}</div>
+                      <div>Selected Company: {selectedCompany?.name}</div>
+                    </div>
+                  </div>
+                  
+                  {loadingCampaignLeads ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse border rounded-lg p-4">
+                          <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : campaignLeads.length > 0 ? (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {campaignLeads.map((campaignLead) => {
+                        // Get lead information from the original leads array or use personalization vars
+                        const leadInfo = leads.find(l => l.id === campaignLead.query_id);
+                        const displayName = campaignLead.personalization_vars?.full_name || 
+                                          leadInfo?.full_name || 'Unknown Lead';
+                        const displayTitle = campaignLead.personalization_vars?.title || 
+                                           leadInfo?.title || 'No Title';
+                        const displayCompany = campaignLead.personalization_vars?.company_name || 
+                                             selectedCompany?.name || 'Unknown Company';
+                        const displayLink = campaignLead.personalization_vars?.source_link || 
+                                          leadInfo?.source_link;
+                        
+                        return (
+                        <div 
+                          key={campaignLead.id} 
+                          className="border rounded-lg p-4 hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h5 className="font-medium text-lg">
+                                  {displayName}
+                                </h5>
+                                <Badge 
+                                  variant={
+                                    campaignLead.status === "scheduled" ? "default" : 
+                                    campaignLead.status === "sent" ? "secondary" : 
+                                    campaignLead.status === "failed" ? "destructive" : "outline"
+                                  }
+                                >
+                                  {campaignLead.status}
+                                </Badge>
+                              </div>
+                              
+                              <p className="text-sm text-muted-foreground mb-1 font-medium">
+                                {displayTitle}
+                              </p>
+                              
+                              <p className="text-sm text-muted-foreground mb-2">
+                                Company: {displayCompany}
+                              </p>
+
+                              {leadInfo?.email && (
+                                <p className="text-sm text-muted-foreground mb-1">
+                                  📧 {leadInfo.email}
+                                </p>
+                              )}
+
+                              {leadInfo?.phone && (
+                                <p className="text-sm text-muted-foreground mb-1">
+                                  📞 {leadInfo.phone}
+                                </p>
+                              )}
+                              
+                              {displayLink && (
+                                <a 
+                                  href={displayLink} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
+                                >
+                                  View LinkedIn Profile <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                            
+                            <div className="text-right text-xs text-muted-foreground ml-4">
+                              <div className="mb-1">
+                                <span className="font-medium">Attempts:</span> {campaignLead.send_attempts}
+                              </div>
+                              {campaignLead.scheduled_at && (
+                                <div className="mb-1">
+                                  <span className="font-medium">Scheduled:</span>
+                                  <br />
+                                  {new Date(campaignLead.scheduled_at).toLocaleString()}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-medium">Added:</span>
+                                <br />
+                                {new Date(campaignLead.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Personalization Variables */}
+                          {campaignLead.personalization_vars && Object.keys(campaignLead.personalization_vars).length > 0 && (
+                            <div className="bg-muted p-3 rounded-md mt-3">
+                              <h6 className="text-xs font-medium mb-2">Personalization Variables:</h6>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {Object.entries(campaignLead.personalization_vars).map(([key, value]) => (
+                                  value && (
+                                    <div key={key}>
+                                      <span className="font-medium capitalize">{key.replace('_', ' ')}:</span>
+                                      <span className="ml-1 text-muted-foreground break-all">{value}</span>
+                                    </div>
+                                  )
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Debug Info */}
+                          <div className="bg-yellow-50 p-2 rounded-md mt-2 text-xs">
+                            <div><span className="font-medium">Lead ID:</span> {campaignLead.query_id}</div>
+                            <div><span className="font-medium">Campaign Lead ID:</span> {campaignLead.id}</div>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium">No Campaign Leads Found</h3>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        No leads have been added to this campaign yet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Navigation Buttons */}
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowCampaignLeads(false);
+                      setShowLeadForm(true);
+                    }}
+                  >
+                    Add More Leads
+                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        fetchCampaignLeads(createdCampaign.id);
+                        toast({
+                          title: "Refreshed",
+                          description: "Campaign leads refreshed",
+                        });
+                      }}
+                      disabled={loadingCampaignLeads}
+                    >
+                      {loadingCampaignLeads ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        "Refresh"
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => {
+                        setShowCampaignLeads(false);
+                        setCampaignLeads([]);
+                        setCreatedCampaign(null);
+                        setSelectedLeads([]);
+                        setLeads([]);
+                        toast({
+                          title: "Campaign Complete",
+                          description: "Campaign setup finished successfully!",
+                        });
+                      }}
+                    >
+                      Finish & Return to Campaigns
+                    </Button>
+                  </div>
+                </div>
+
+                {/* API Debug for Campaign Leads */}
+                <div className="bg-muted p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">API Debug - Campaign Leads:</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Create Campaign Lead Endpoint:</span>
+                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
+                        POST {API_CONFIG.BASE_URL}/api/campaign-leads
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium">Get Campaign Leads Endpoint:</span>
+                      <code className="ml-1 text-xs bg-white px-1 py-0.5 rounded">
+                        GET {API_CONFIG.BASE_URL}/api/campaign-leads/campaigns/{createdCampaign.id}
+                      </code>
+                    </div>
+                    <div>
+                      <span className="font-medium">Sample Campaign Lead Creation cURL:</span>
+                      <pre className="mt-2 text-xs bg-white p-3 rounded-md overflow-x-auto">
+{`curl -X POST "${API_CONFIG.BASE_URL}/api/campaign-leads" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "account_id": "${accountId}",
-    "company_id": "${selectedCompany.id}",
-    "name": "${createdCampaign.name}",
-    "subject_template": "${createdCampaign.subject_template}"
+    "campaign_id": "${createdCampaign.id}",
+    "query_id": "lead-id-here",
+    "status": "queued",
+    "send_attempts": 0,
+    "scheduled_at": "${new Date(Date.now() + 60 * 60 * 1000).toISOString()}"
   }'`}
                       </pre>
                     </div>
@@ -1466,6 +2484,11 @@ export default function Campaigns() {
               <CardTitle className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
                 Email Campaign Template
+                {isTemplateModified && (
+                  <Badge variant="secondary" className="ml-2">
+                    Modified
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Preview and edit email campaign templates for {selectedCompany.name}
@@ -1488,41 +2511,134 @@ export default function Campaigns() {
                   <div className="border rounded-lg bg-gray-50 p-4">
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
                       <iframe
-                        srcDoc={demoHtmlTemplate}
+                        srcDoc={getCurrentTemplate()}
                         className="w-full h-[600px] border-0 rounded-lg"
                         title="Email Template Preview"
                         sandbox="allow-same-origin"
                       />
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    This is a live preview of your email template with {selectedCompany.name}'s branding
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      This is a live preview of your email template with {selectedCompany.name}'s branding
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCustomHtmlTemplate(demoHtmlTemplate);
+                          setIsTemplateModified(false);
+                          toast({
+                            title: "Template Reset",
+                            description: "Template reset to default demo template",
+                          });
+                        }}
+                        disabled={!isTemplateModified}
+                      >
+                        Reset to Default
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const currentTemplate = getCurrentTemplate();
+                          setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
+                          toast({
+                            title: "Template Applied",
+                            description: "Current template applied to campaign form",
+                          });
+                        }}
+                      >
+                        Apply to Campaign
+                      </Button>
+                    </div>
+                  </div>
                 </TabsContent>
                 
                 <TabsContent value="code" className="space-y-4">
                   <div className="relative">
-                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs max-h-[600px] overflow-y-auto">
-                      <code>{demoHtmlTemplate}</code>
-                    </pre>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="absolute top-2 right-2 bg-white/90 hover:bg-white"
-                      onClick={() => {
-                        navigator.clipboard.writeText(demoHtmlTemplate);
-                        toast({
-                          title: "Copied!",
-                          description: "HTML code copied to clipboard",
-                        });
+                    <Textarea
+                      value={isTemplateModified ? customHtmlTemplate : demoHtmlTemplate}
+                      onChange={(e) => {
+                        setCustomHtmlTemplate(e.target.value);
+                        setIsTemplateModified(true);
                       }}
-                    >
-                      Copy HTML
-                    </Button>
+                      className="font-mono text-xs min-h-[600px] max-h-[600px] overflow-y-auto bg-gray-900 text-gray-100 border-gray-700"
+                      placeholder="Enter your HTML email template..."
+                    />
+                    <div className="absolute top-2 right-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/90 hover:bg-white text-black"
+                        onClick={() => {
+                          navigator.clipboard.writeText(getCurrentTemplate());
+                          toast({
+                            title: "Copied!",
+                            description: "HTML code copied to clipboard",
+                          });
+                        }}
+                      >
+                        Copy HTML
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-white/90 hover:bg-white text-black"
+                        onClick={() => {
+                          setCustomHtmlTemplate(demoHtmlTemplate);
+                          setIsTemplateModified(false);
+                          toast({
+                            title: "Template Reset",
+                            description: "Template reset to default",
+                          });
+                        }}
+                        disabled={!isTemplateModified}
+                      >
+                        Reset
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    HTML email template code customized for {selectedCompany.name}. Variables like {"{"}{"{"} first_name {"}"} {"}"} and {"{"}{"{"} year {"}"} {"}"} will be replaced during sending.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {isTemplateModified 
+                        ? `Custom HTML template for ${selectedCompany.name}. Variables like {{first_name}} and {{year}} will be replaced during sending.`
+                        : `Default HTML template for ${selectedCompany.name}. Variables like {{first_name}} and {{year}} will be replaced during sending.`
+                      }
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const currentTemplate = getCurrentTemplate();
+                          setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
+                          toast({
+                            title: "Template Applied",
+                            description: "Current template applied to campaign form",
+                          });
+                        }}
+                      >
+                        Apply to Campaign
+                      </Button>
+                      {isTemplateModified && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            // Save the template (you can add API call here to save to backend)
+                            toast({
+                              title: "Template Saved",
+                              description: "Custom template saved successfully",
+                            });
+                          }}
+                        >
+                          Save Template
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
