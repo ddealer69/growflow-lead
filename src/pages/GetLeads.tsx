@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Building2, Globe, Calendar, Users, ExternalLink, Search, Play, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
@@ -104,6 +105,10 @@ export default function GetLeads() {
   const [visibleResults, setVisibleResults] = useState<Set<string>>(new Set());
   const [loadingExistingQueries, setLoadingExistingQueries] = useState(false);
   const [enrichingLeads, setEnrichingLeads] = useState<Set<string>>(new Set());
+  
+  // Results table view state
+  const [showResultsTable, setShowResultsTable] = useState(false);
+  const [selectedQueryForResults, setSelectedQueryForResults] = useState<SearchQuery | null>(null);
   
   // Session variables for the current company context
   const [sessionVars, setSessionVars] = useState<{
@@ -571,6 +576,193 @@ export default function GetLeads() {
 
   // Company detail view
   if (selectedCompany) {
+    // If showing results table, show only the table view
+    if (showResultsTable && selectedQueryForResults && searchResults[selectedQueryForResults.id]) {
+      return (
+        <div className="space-y-6">
+          {/* Header with Back Button */}
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowResultsTable(false);
+                setSelectedQueryForResults(null);
+              }}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Queries
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">Search Results: {selectedQueryForResults.name}</h1>
+              <p className="text-muted-foreground">
+                {searchResults[selectedQueryForResults.id].length} results from "{selectedQueryForResults.query_string}"
+              </p>
+            </div>
+          </div>
+
+          {/* Query Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Query Details</span>
+                <Badge 
+                  variant={
+                    selectedQueryForResults.status === "completed" ? "default" : 
+                    selectedQueryForResults.status === "processing" ? "secondary" : 
+                    selectedQueryForResults.status === "failed" ? "destructive" : "outline"
+                  }
+                >
+                  {selectedQueryForResults.status}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Pages:</span> {selectedQueryForResults.pages_fetched}/{selectedQueryForResults.pages_requested}
+                </div>
+                <div>
+                  <span className="font-medium">Results:</span> {searchResults[selectedQueryForResults.id].length}
+                </div>
+                <div>
+                  <span className="font-medium">Created:</span> {new Date(selectedQueryForResults.created_at).toLocaleString()}
+                </div>
+                {selectedQueryForResults.finished_at && (
+                  <div>
+                    <span className="font-medium">Finished:</span> {new Date(selectedQueryForResults.finished_at).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Results Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Search Results ({searchResults[selectedQueryForResults.id].length})</span>
+                <div className="flex gap-2">
+                  {searchResults[selectedQueryForResults.id] && searchResults[selectedQueryForResults.id].length > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => enrichLeadsIndividually(selectedQueryForResults.id)}
+                      disabled={
+                        enrichingLeads.has(selectedQueryForResults.id) || 
+                        !sessionVars || 
+                        (enrichmentProgress[selectedQueryForResults.id] && !enrichmentProgress[selectedQueryForResults.id].isRunning && enrichmentProgress[selectedQueryForResults.id].completed === enrichmentProgress[selectedQueryForResults.id].total)
+                      }
+                    >
+                      {enrichingLeads.has(selectedQueryForResults.id) ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Users className="h-4 w-4 mr-2" />
+                      )}
+                      {enrichingLeads.has(selectedQueryForResults.id) 
+                        ? "Enriching..." 
+                        : enrichmentProgress[selectedQueryForResults.id] && !enrichmentProgress[selectedQueryForResults.id].isRunning && enrichmentProgress[selectedQueryForResults.id].completed === enrichmentProgress[selectedQueryForResults.id].total
+                          ? `Enriched ${searchResults[selectedQueryForResults.id].length} Leads ✓`
+                          : `Enrich ${searchResults[selectedQueryForResults.id].length} Leads`
+                      }
+                    </Button>
+                  )}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Progress Counter */}
+              {enrichmentProgress[selectedQueryForResults.id] && (
+                <div className="mb-4 text-xs text-muted-foreground bg-blue-50 p-3 rounded border">
+                  <div className="flex justify-between items-center">
+                    <span>Progress:</span>
+                    <span className="font-medium">
+                      {enrichmentProgress[selectedQueryForResults.id].completed}/{enrichmentProgress[selectedQueryForResults.id].total}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-green-600">✓ Successful: {enrichmentProgress[selectedQueryForResults.id].successful}</span>
+                    <span className="text-red-600">✗ Failed: {enrichmentProgress[selectedQueryForResults.id].failed}</span>
+                  </div>
+                  {enrichmentProgress[selectedQueryForResults.id].isRunning && (
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                          style={{
+                            width: `${(enrichmentProgress[selectedQueryForResults.id].completed / enrichmentProgress[selectedQueryForResults.id].total) * 100}%`
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Results Table */}
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Link</TableHead>
+                      <TableHead>Position</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Snippet</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {searchResults[selectedQueryForResults.id].map((result) => (
+                      <TableRow key={result.id}>
+                        <TableCell>
+                          <div className="font-medium text-sm max-w-xs">
+                            {result.title}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <a 
+                            href={result.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline text-xs break-all max-w-sm truncate inline-block"
+                            title={result.link}
+                          >
+                            <ExternalLink className="h-3 w-3 inline mr-1" />
+                            {result.link.length > 50 ? `${result.link.substring(0, 50)}...` : result.link}
+                          </a>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            Page {result.page_number} - #{result.position}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {result.is_processed ? (
+                            <Badge variant="default" className="text-xs">
+                              Enriched
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              Pending
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground max-w-md line-clamp-2">
+                            {result.snippet}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -876,23 +1068,12 @@ export default function GetLeads() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setVisibleResults(prev => {
-                                  const newSet = new Set(prev);
-                                  if (newSet.has(query.id)) {
-                                    newSet.delete(query.id);
-                                  } else {
-                                    newSet.add(query.id);
-                                  }
-                                  return newSet;
-                                });
+                                setSelectedQueryForResults(query);
+                                setShowResultsTable(true);
                               }}
                             >
-                              {visibleResults.has(query.id) ? (
-                                <EyeOff className="h-4 w-4 mr-2" />
-                              ) : (
-                                <Eye className="h-4 w-4 mr-2" />
-                              )}
-                              {visibleResults.has(query.id) ? "Hide Results" : "Show Results"}
+                              <Eye className="h-4 w-4 mr-2" />
+                              Show Results Table
                             </Button>
                           )}
                           
@@ -964,41 +1145,6 @@ export default function GetLeads() {
                         </>
                       )}
                     </div>
-
-                    {/* Search Results */}
-                    {searchResults[query.id] && visibleResults.has(query.id) && (
-                      <div className="mt-4 border-t pt-4">
-                        <h5 className="font-medium mb-3">Search Results ({searchResults[query.id].length})</h5>
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {searchResults[query.id].map((result) => (
-                            <div key={result.id} className="bg-muted p-3 rounded">
-                              <div className="flex items-start justify-between mb-2">
-                                <h6 className="font-medium text-sm line-clamp-1">{result.title}</h6>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    Page {result.page_number} - #{result.position}
-                                  </Badge>
-                                  {result.is_processed && (
-                                    <Badge variant="default" className="text-xs">
-                                      Enriched
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <a 
-                                href={result.link} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline break-all"
-                              >
-                                {result.link}
-                              </a>
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{result.snippet}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
