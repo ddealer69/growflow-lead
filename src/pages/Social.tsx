@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,10 @@ import {
   Facebook,
   FileText,
   Copy,
-  Check
+  Check,
+  Sparkles,
+  RefreshCw,
+  MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
@@ -108,11 +111,225 @@ export default function Social() {
     include_past: false
   });
 
+  // AI Modification states
+  const [modifyingPost, setModifyingPost] = useState<{postIndex: number, content: string} | null>(null);
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+  const [modifyType, setModifyType] = useState<'humanize' | 'custom'>('humanize');
+  const [customModifyPrompt, setCustomModifyPrompt] = useState('');
+  const [aiModifying, setAiModifying] = useState(false);
+  const [modifiedPosts, setModifiedPosts] = useState<{[key: string]: string}>({});
+
+  // Gemini API configuration
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    console.error('VITE_GEMINI_API_KEY not found in environment variables');
+  }
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+
+  // System prompts for AI modification
+  const getModificationSystemPrompt = (type: 'humanize' | 'custom', platform: string) => {
+    if (type === 'humanize') {
+      return `You are an expert social media content humanizer. Your task is to take AI-generated social media content and make it sound more human, authentic, and engaging while maintaining the core message and platform-specific requirements.
+
+Key requirements for humanization:
+- Make the tone more conversational and relatable
+- Add personality and authentic voice
+- Remove overly formal or robotic language
+- Include natural speech patterns and expressions
+- Maintain platform-specific formatting and requirements (${platform})
+- Keep hashtags, CTAs, and structure intact
+- Add emotional touches where appropriate
+- Make it sound like a real person wrote it, not an AI
+- Ensure the content flows naturally
+- Remove corporate jargon and make it more personal
+
+Platform-specific considerations for ${platform}:
+${getPlatformSpecificGuidelines(platform)}
+
+Return ONLY the humanized content without any additional explanations or formatting.`;
+    } else {
+      return `You are an expert social media content editor. Your task is to modify social media content based on specific user instructions while maintaining platform best practices and engagement potential.
+
+Key requirements:
+- Follow the user's modification instructions precisely
+- Maintain platform-specific formatting and requirements (${platform})
+- Keep the content engaging and optimized for ${platform}
+- Preserve hashtags, CTAs, and structure unless specifically asked to change them
+- Ensure the modified content is professional yet engaging
+- Maintain proper character limits and formatting for ${platform}
+- Keep the core message intact unless instructed otherwise
+
+Platform-specific considerations for ${platform}:
+${getPlatformSpecificGuidelines(platform)}
+
+Return ONLY the modified content without any additional explanations or formatting.`;
+    }
+  };
+
+  const getPlatformSpecificGuidelines = (platform: string) => {
+    switch (platform) {
+      case 'linkedin':
+        return `- Professional yet personable tone
+        - Use line breaks for readability
+        - Include industry insights and professional value
+        - Encourage meaningful discussions
+        - Use 1-3 relevant hashtags
+        - Keep under 3000 characters`;
+      case 'instagram':
+        return `- Visual-first approach with engaging captions
+        - Use storytelling and emotional connection
+        - Include 5-10 relevant hashtags
+        - Encourage engagement with questions
+        - Keep captions concise but compelling
+        - Use emojis appropriately`;
+      case 'facebook':
+        return `- Conversational and community-focused tone
+        - Encourage sharing and comments
+        - Use storytelling approach
+        - Include call-to-action
+        - Keep posts scannable with line breaks
+        - Use 1-2 hashtags maximum`;
+      case 'youtube':
+        return `- Focus on video description and title
+        - Include timestamps if relevant
+        - Encourage subscriptions and engagement
+        - Use keywords for searchability
+        - Include relevant hashtags
+        - Add call-to-action for comments`;
+      case 'blog':
+        return `- Long-form content structure
+        - Include compelling headline
+        - Use subheadings and bullet points
+        - SEO-friendly content
+        - Include call-to-action
+        - Professional yet engaging tone`;
+      default:
+        return `- Platform-appropriate formatting
+        - Engaging and professional tone
+        - Include relevant hashtags
+        - Encourage user engagement`;
+    }
+  };
+
   useEffect(() => {
     if (accountId) {
       fetchCompaniesWithBanners();
     }
   }, [accountId]);
+
+  // AI modification function
+  const modifyPostWithAI = async () => {
+    if (!modifyingPost || !GEMINI_API_KEY) {
+      toast.error('Configuration error: Unable to modify content');
+      return;
+    }
+
+    if (modifyType === 'custom' && !customModifyPrompt.trim()) {
+      toast.error('Please enter modification instructions');
+      return;
+    }
+
+    setAiModifying(true);
+    try {
+      const systemPrompt = getModificationSystemPrompt(modifyType, selectedGeneration?.platform || 'general');
+      
+      let fullPrompt = '';
+      if (modifyType === 'humanize') {
+        fullPrompt = `${systemPrompt}\n\nOriginal content to humanize:\n${modifyingPost.content}`;
+      } else {
+        fullPrompt = `${systemPrompt}\n\nOriginal content:\n${modifyingPost.content}\n\nModification instructions: ${customModifyPrompt}`;
+      }
+
+      const requestBody = {
+        contents: [{
+          parts: [{
+            text: fullPrompt
+          }]
+        }]
+      };
+
+      console.log('Making AI modification request to:', GEMINI_API_URL);
+
+      const response = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('AI modification API Error:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('AI modification response:', data);
+      
+      const modifiedContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (modifiedContent) {
+        // Store the modified content
+        const postKey = `${selectedGeneration?.id}-post-${modifyingPost.postIndex}`;
+        setModifiedPosts(prev => ({
+          ...prev,
+          [postKey]: modifiedContent
+        }));
+        
+        toast.success(`Content ${modifyType === 'humanize' ? 'humanized' : 'modified'} successfully!`);
+        setShowModifyDialog(false);
+        setCustomModifyPrompt('');
+        setModifyingPost(null);
+      } else {
+        console.error('No content in AI response:', data);
+        throw new Error('No modified content generated - API returned empty response');
+      }
+    } catch (error) {
+      console.error('Error modifying content with AI:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to modify content. Please try again.");
+    } finally {
+      setAiModifying(false);
+    }
+  };
+
+  // Handle opening modify dialog
+  const handleModifyPost = (postIndex: number, content: string) => {
+    const formattedContent = formatPostForCopy(
+      selectedGeneration?.generated_posts?.posts[postIndex],
+      selectedGeneration?.platform || 'general'
+    );
+    setModifyingPost({ postIndex, content: formattedContent });
+    setShowModifyDialog(true);
+    setModifyType('humanize');
+    setCustomModifyPrompt('');
+  };
+
+  // Get the current content (modified or original)
+  const getCurrentPostContent = (postIndex: number) => {
+    const postKey = `${selectedGeneration?.id}-post-${postIndex}`;
+    const modifiedContent = modifiedPosts[postKey];
+    
+    if (modifiedContent) {
+      return modifiedContent;
+    }
+    
+    // Return original formatted content
+    if (selectedGeneration?.generated_posts?.posts[postIndex]) {
+      return formatPostForCopy(
+        selectedGeneration.generated_posts.posts[postIndex],
+        selectedGeneration.platform
+      );
+    }
+    
+    return '';
+  };
+
+  // Check if post has been modified
+  const isPostModified = (postIndex: number) => {
+    const postKey = `${selectedGeneration?.id}-post-${postIndex}`;
+    return !!modifiedPosts[postKey];
+  };
 
   const fetchCompaniesWithBanners = async () => {
     try {
@@ -292,6 +509,141 @@ export default function Social() {
       default: return Clock;
     }
   };
+
+  // AI Modification Dialog
+  const renderModificationDialog = () => (
+    <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            AI Content Modification
+          </DialogTitle>
+          <DialogDescription>
+            Choose how you want to modify your {selectedGeneration?.platform} post content
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Original Content Preview */}
+          <div>
+            <Label className="text-sm font-medium">Original Content</Label>
+            <div className="mt-1 p-3 bg-muted rounded-lg">
+              <pre className="whitespace-pre-wrap text-sm text-muted-foreground">{modifyingPost?.content}</pre>
+            </div>
+          </div>
+
+          {/* Modification Type Selection */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Modification Type</Label>
+            <div className="grid gap-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="humanize"
+                  name="modifyType"
+                  value="humanize"
+                  checked={modifyType === 'humanize'}
+                  onChange={(e) => setModifyType(e.target.value as 'humanize' | 'custom')}
+                  className="rounded"
+                />
+                <Label htmlFor="humanize" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="font-medium">Humanize Content</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Make the content sound more natural, conversational, and authentic while maintaining the core message
+                  </p>
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="custom"
+                  name="modifyType"
+                  value="custom"
+                  checked={modifyType === 'custom'}
+                  onChange={(e) => setModifyType(e.target.value as 'humanize' | 'custom')}
+                  className="rounded"
+                />
+                <Label htmlFor="custom" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="font-medium">Custom Modification</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Provide specific instructions for how you want the content to be modified
+                  </p>
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom Modification Input */}
+          {modifyType === 'custom' && (
+            <div className="space-y-2">
+              <Label htmlFor="customPrompt">Modification Instructions</Label>
+              <Textarea
+                id="customPrompt"
+                value={customModifyPrompt}
+                onChange={(e) => setCustomModifyPrompt(e.target.value)}
+                placeholder="Example: Make it more professional, add more excitement, change tone to casual, include more technical details, etc."
+                className="min-h-[100px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Be specific about what changes you want. The AI will follow your instructions while maintaining platform best practices.
+              </p>
+            </div>
+          )}
+
+          {/* API Key Warning */}
+          {!GEMINI_API_KEY && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                ⚠️ Gemini API key not configured. Please check your environment variables.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowModifyDialog(false);
+              setCustomModifyPrompt('');
+              setModifyingPost(null);
+            }}
+            disabled={aiModifying}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={modifyPostWithAI}
+            disabled={
+              aiModifying || 
+              !GEMINI_API_KEY || 
+              (modifyType === 'custom' && !customModifyPrompt.trim())
+            }
+          >
+            {aiModifying ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                {modifyType === 'humanize' ? 'Humanizing...' : 'Modifying...'}
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                {modifyType === 'humanize' ? 'Humanize Content' : 'Modify Content'}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   if (loading) {
     return <div className="text-muted-foreground">Loading social content generator...</div>;
@@ -687,64 +1039,97 @@ export default function Social() {
                   {selectedGeneration.generated_posts.posts.map((post, index) => {
                     const postId = `${selectedGeneration.id}-post-${index}`;
                     const isCopied = copiedItems.has(postId);
-                    const formattedContent = formatPostForCopy(post, selectedGeneration.platform);
+                    const isModified = isPostModified(index);
+                    const currentContent = getCurrentPostContent(index);
                     
                     return (
-                      <Card key={index} className="border-l-4 border-l-primary">
+                      <Card key={index} className={`border-l-4 ${isModified ? 'border-l-green-500' : 'border-l-primary'}`}>
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               {post.title && (
                                 <h5 className="font-medium mb-2">{post.title}</h5>
                               )}
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyToClipboard(formattedContent, postId)}
-                              className="ml-2 flex-shrink-0"
-                            >
-                              {isCopied ? (
-                                <>
-                                  <Check className="h-4 w-4 mr-1" />
-                                  Copied!
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-4 w-4 mr-1" />
-                                  Copy
-                                </>
+                              {isModified && (
+                                <Badge variant="secondary" className="text-xs mb-2">
+                                  <Sparkles className="h-3 w-3 mr-1" />
+                                  AI Modified
+                                </Badge>
                               )}
-                            </Button>
+                            </div>
+                            <div className="flex gap-2 ml-2 flex-shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleModifyPost(index, currentContent)}
+                                disabled={aiModifying}
+                              >
+                                <Sparkles className="h-4 w-4 mr-1" />
+                                Use AI to Modify
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => copyToClipboard(currentContent, postId)}
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check className="h-4 w-4 mr-1" />
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-4 w-4 mr-1" />
+                                    Copy
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                           
-                          {post.content && (
+                          {/* Display modified content or original content */}
+                          {isModified ? (
                             <div className="mb-3">
-                              <pre className="whitespace-pre-wrap text-sm">{post.content}</pre>
-                            </div>
-                          )}
-                          {post.caption && (
-                            <div className="mb-3">
-                              <h6 className="text-xs font-medium text-muted-foreground mb-1">CAPTION:</h6>
-                              <p className="text-sm">{post.caption}</p>
-                            </div>
-                          )}
-                          {post.hashtags && post.hashtags.length > 0 && (
-                            <div className="mb-2">
-                              <div className="flex flex-wrap gap-1">
-                                {post.hashtags.map((tag: string, tagIndex: number) => (
-                                  <Badge key={tagIndex} variant="outline" className="text-xs">
-                                    {tag}
-                                  </Badge>
-                                ))}
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Sparkles className="h-4 w-4 text-green-600" />
+                                  <span className="text-sm font-medium text-green-800">Modified Content</span>
+                                </div>
+                                <pre className="whitespace-pre-wrap text-sm text-green-900">{currentContent}</pre>
                               </div>
                             </div>
+                          ) : (
+                            <>
+                              {post.content && (
+                                <div className="mb-3">
+                                  <pre className="whitespace-pre-wrap text-sm">{post.content}</pre>
+                                </div>
+                              )}
+                              {post.caption && (
+                                <div className="mb-3">
+                                  <h6 className="text-xs font-medium text-muted-foreground mb-1">CAPTION:</h6>
+                                  <p className="text-sm">{post.caption}</p>
+                                </div>
+                              )}
+                              {post.hashtags && post.hashtags.length > 0 && (
+                                <div className="mb-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {post.hashtags.map((tag: string, tagIndex: number) => (
+                                      <Badge key={tagIndex} variant="outline" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {post.call_to_action && (
+                                <div className="text-sm text-muted-foreground mb-2">
+                                  <strong>CTA:</strong> {post.call_to_action}
+                                </div>
+                              )}
+                            </>
                           )}
-                          {post.call_to_action && (
-                            <div className="text-sm text-muted-foreground mb-2">
-                              <strong>CTA:</strong> {post.call_to_action}
-                            </div>
-                          )}
+                          
                           {post.post_type && (
                             <div className="flex items-center justify-between">
                               <Badge variant="secondary" className="text-xs">
@@ -764,9 +1149,18 @@ export default function Social() {
             )}
           </CardContent>
         </Card>
+
+        {/* AI Modification Dialog */}
+        {renderModificationDialog()}
       </div>
     );
   }
 
-  return null;
+  // Final return for the component - should not reach here normally
+  return (
+    <div className="space-y-6">
+      {renderHeader()}
+      {renderModificationDialog()}
+    </div>
+  );
 }
