@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Building2, Globe, Calendar, Users, ExternalLink, Search, Play, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Building2, Globe, Calendar, Users, ExternalLink, Search, Play, Eye, EyeOff, Loader2, Copy, Wand2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +74,27 @@ interface SearchResult {
   created_at: string;
 }
 
+interface LeadFilters {
+  // Contact-Level Filters
+  jobTitle: string;
+  seniorityLevel: string;
+  department: string;
+  country: string;
+  city: string;
+  keywords: string;
+  
+  // Company-Level Filters
+  industry: string;
+  companySize: string;
+  revenueRange: string;
+  techStack: string;
+  hiringKeywords: string;
+  
+  // Meta Filters
+  searchType: string;
+  booleanMode: boolean;
+}
+
 interface CreateQueryForm {
   name: string;
   query_string: string;
@@ -79,6 +102,9 @@ interface CreateQueryForm {
   pages_requested: number;
   dedupe_mode: string;
   notes: string;
+  
+  // Enhanced lead filters
+  leadFilters: LeadFilters;
 }
 
 export default function GetLeads() {
@@ -96,7 +122,22 @@ export default function GetLeads() {
     company_banner_id: "",
     pages_requested: 5,
     dedupe_mode: "per_company",
-    notes: ""
+    notes: "",
+    leadFilters: {
+      jobTitle: "",
+      seniorityLevel: "",
+      department: "",
+      country: "",
+      city: "",
+      keywords: "",
+      industry: "",
+      companySize: "",
+      revenueRange: "",
+      techStack: "",
+      hiringKeywords: "",
+      searchType: "linkedin",
+      booleanMode: false
+    }
   });
   const [creatingQuery, setCreatingQuery] = useState(false);
   const [processingQueries, setProcessingQueries] = useState<Set<string>>(new Set());
@@ -133,6 +174,131 @@ export default function GetLeads() {
       fetchCompanies();
     }
   }, [accountId]);
+
+  // Function to generate and set the LinkedIn query
+  const handleGenerateQuery = () => {
+    const generatedQuery = generateLinkedInQuery(queryForm.leadFilters);
+    setQueryForm(prev => ({
+      ...prev,
+      query_string: generatedQuery
+    }));
+    
+    toast({
+      title: "Query Generated",
+      description: "LinkedIn search query has been generated from your filters",
+    });
+  };
+
+  // Function to copy query to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copied",
+        description: "Query copied to clipboard",
+      });
+    } catch (err) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to generate LinkedIn search query from filters
+  const generateLinkedInQuery = (filters: LeadFilters): string => {
+    const queryParts: string[] = [];
+    
+    // Handle job title (can be multiple separated by commas)
+    if (filters.jobTitle.trim()) {
+      const titles = filters.jobTitle.split(',').map(t => t.trim()).filter(t => t);
+      if (titles.length === 1) {
+        queryParts.push(`"${titles[0]}"`);
+      } else if (titles.length > 1) {
+        queryParts.push(`(${titles.map(t => `"${t}"`).join(' OR ')})`);
+      }
+    }
+    
+    // Handle seniority level
+    if (filters.seniorityLevel.trim()) {
+      queryParts.push(`"${filters.seniorityLevel}"`);
+    }
+    
+    // Handle department
+    if (filters.department.trim()) {
+      queryParts.push(`"${filters.department}"`);
+    }
+    
+    // Handle country/region
+    if (filters.country.trim()) {
+      const countries = filters.country.split(',').map(c => c.trim()).filter(c => c);
+      if (countries.length === 1) {
+        queryParts.push(`"${countries[0]}"`);
+      } else if (countries.length > 1) {
+        queryParts.push(`(${countries.map(c => `"${c}"`).join(' OR ')})`);
+      }
+    }
+    
+    // Handle city
+    if (filters.city.trim()) {
+      queryParts.push(`"${filters.city}"`);
+    }
+    
+    // Handle company size
+    if (filters.companySize.trim()) {
+      queryParts.push(`("${filters.companySize} employees")`);
+    }
+    
+    // Handle industry
+    if (filters.industry.trim()) {
+      const industries = filters.industry.split(',').map(i => i.trim()).filter(i => i);
+      if (industries.length === 1) {
+        queryParts.push(`"${industries[0]}"`);
+      } else if (industries.length > 1) {
+        queryParts.push(`(${industries.map(i => `"${i}"`).join(' OR ')})`);
+      }
+    }
+    
+    // Handle revenue range
+    if (filters.revenueRange.trim()) {
+      queryParts.push(`"${filters.revenueRange}"`);
+    }
+    
+    // Handle tech stack
+    if (filters.techStack.trim()) {
+      const techItems = filters.techStack.split(',').map(t => t.trim()).filter(t => t);
+      if (techItems.length === 1) {
+        queryParts.push(`"${techItems[0]}"`);
+      } else if (techItems.length > 1) {
+        queryParts.push(`(${techItems.map(t => `"${t}"`).join(' OR ')})`);
+      }
+    }
+    
+    // Handle keywords
+    if (filters.keywords.trim()) {
+      const keywords = filters.keywords.split(',').map(k => k.trim()).filter(k => k);
+      keywords.forEach(keyword => {
+        queryParts.push(`"${keyword}"`);
+      });
+    }
+    
+    // Handle hiring keywords
+    if (filters.hiringKeywords.trim()) {
+      const hiringKeywords = filters.hiringKeywords.split(',').map(h => h.trim()).filter(h => h);
+      hiringKeywords.forEach(keyword => {
+        queryParts.push(`"${keyword}"`);
+      });
+    }
+    
+    // Add site restriction based on search type
+    const siteRestriction = filters.searchType === 'linkedin' ? 'site:linkedin.com/in' : 
+                           filters.searchType === 'crunchbase' ? 'site:crunchbase.com' :
+                           filters.searchType === 'apollo' ? 'site:apollo.io' : 'site:linkedin.com/in';
+    queryParts.push(siteRestriction);
+    
+    return queryParts.filter(Boolean).join(' ');
+  };
 
   const fetchCompanies = async () => {
     if (!accountId) {
@@ -290,7 +456,22 @@ export default function GetLeads() {
           company_banner_id: "",
           pages_requested: 5,
           dedupe_mode: "per_company",
-          notes: ""
+          notes: "",
+          leadFilters: {
+            jobTitle: "",
+            seniorityLevel: "",
+            department: "",
+            country: "",
+            city: "",
+            keywords: "",
+            industry: "",
+            companySize: "",
+            revenueRange: "",
+            techStack: "",
+            hiringKeywords: "",
+            searchType: "linkedin",
+            booleanMode: false
+          }
         });
         toast({
           title: "Success",
@@ -891,7 +1072,8 @@ export default function GetLeads() {
                 Generate leads for {selectedCompany.name} using Google Custom Search API
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* Basic Query Information */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="query_name">Query Name</Label>
@@ -921,17 +1103,307 @@ export default function GetLeads() {
                   </Select>
                 </div>
               </div>
-              
+
+              {/* Enhanced Lead Filters */}
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <Wand2 className="h-5 w-5" />
+                  <h3 className="text-lg font-medium">Smart Query Builder</h3>
+                  <Badge variant="outline">Build LinkedIn queries automatically</Badge>
+                </div>
+                
+                <Tabs defaultValue="contact" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="contact">Contact Level</TabsTrigger>
+                    <TabsTrigger value="company">Company Level</TabsTrigger>
+                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                  </TabsList>
+
+                  {/* Contact Level Filters */}
+                  <TabsContent value="contact" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label htmlFor="job_title">Job Title / Role</Label>
+                        <Input
+                          id="job_title"
+                          value={queryForm.leadFilters.jobTitle}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, jobTitle: e.target.value}
+                          }))}
+                          placeholder="e.g., CEO, CTO, Marketing Manager"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Separate multiple titles with commas
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="seniority_level">Seniority Level</Label>
+                        <Select 
+                          value={queryForm.leadFilters.seniorityLevel}
+                          onValueChange={(value) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, seniorityLevel: value}
+                          }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select seniority" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="C-Level">C-Level</SelectItem>
+                            <SelectItem value="VP">VP</SelectItem>
+                            <SelectItem value="Director">Director</SelectItem>
+                            <SelectItem value="Manager">Manager</SelectItem>
+                            <SelectItem value="Senior">Senior</SelectItem>
+                            <SelectItem value="Associate">Associate</SelectItem>
+                            <SelectItem value="Entry Level">Entry Level</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="department">Department</Label>
+                        <Select 
+                          value={queryForm.leadFilters.department}
+                          onValueChange={(value) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, department: value}
+                          }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="IT">IT</SelectItem>
+                            <SelectItem value="Operations">Operations</SelectItem>
+                            <SelectItem value="Marketing">Marketing</SelectItem>
+                            <SelectItem value="Product">Product</SelectItem>
+                            <SelectItem value="Finance">Finance</SelectItem>
+                            <SelectItem value="Sales">Sales</SelectItem>
+                            <SelectItem value="HR">HR</SelectItem>
+                            <SelectItem value="Engineering">Engineering</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="country">Country / Region</Label>
+                        <Input
+                          id="country"
+                          value={queryForm.leadFilters.country}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, country: e.target.value}
+                          }))}
+                          placeholder="e.g., India, United States, UAE"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Separate multiple countries with commas
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="city">City (Optional)</Label>
+                        <Input
+                          id="city"
+                          value={queryForm.leadFilters.city}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, city: e.target.value}
+                          }))}
+                          placeholder="e.g., Mumbai, New York"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="keywords">Professional Keywords</Label>
+                        <Input
+                          id="keywords"
+                          value={queryForm.leadFilters.keywords}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, keywords: e.target.value}
+                          }))}
+                          placeholder="e.g., AI automation, cloud adoption"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Interest areas or expertise keywords
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Company Level Filters */}
+                  <TabsContent value="company" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label htmlFor="industry">Industry</Label>
+                        <Input
+                          id="industry"
+                          value={queryForm.leadFilters.industry}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, industry: e.target.value}
+                          }))}
+                          placeholder="e.g., SaaS, Fintech, Healthcare"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Separate multiple industries with commas
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="company_size">Company Size</Label>
+                        <Select 
+                          value={queryForm.leadFilters.companySize}
+                          onValueChange={(value) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, companySize: value}
+                          }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select company size" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1-10">1-10</SelectItem>
+                            <SelectItem value="11-50">11-50</SelectItem>
+                            <SelectItem value="51-200">51-200</SelectItem>
+                            <SelectItem value="201-1000">201-1000</SelectItem>
+                            <SelectItem value="1000+">1000+</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="revenue_range">Revenue / Funding Stage</Label>
+                        <Input
+                          id="revenue_range"
+                          value={queryForm.leadFilters.revenueRange}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, revenueRange: e.target.value}
+                          }))}
+                          placeholder="e.g., Series A, >$1M, $10M-$100M"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="tech_stack">Tech Stack</Label>
+                        <Input
+                          id="tech_stack"
+                          value={queryForm.leadFilters.techStack}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, techStack: e.target.value}
+                          }))}
+                          placeholder="e.g., AWS, HubSpot, Salesforce"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Technologies used by target companies
+                        </p>
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <Label htmlFor="hiring_keywords">Hiring Trends</Label>
+                        <Input
+                          id="hiring_keywords"
+                          value={queryForm.leadFilters.hiringKeywords}
+                          onChange={(e) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, hiringKeywords: e.target.value}
+                          }))}
+                          placeholder="e.g., AI Engineer, DevOps, Sales Manager"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Roles companies are actively hiring for
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Settings */}
+                  <TabsContent value="settings" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label htmlFor="search_type">Search Platform</Label>
+                        <Select 
+                          value={queryForm.leadFilters.searchType}
+                          onValueChange={(value) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, searchType: value}
+                          }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="linkedin">LinkedIn</SelectItem>
+                            <SelectItem value="crunchbase">Crunchbase</SelectItem>
+                            <SelectItem value="apollo">Apollo</SelectItem>
+                            <SelectItem value="google">General Google</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="boolean_mode"
+                          checked={queryForm.leadFilters.booleanMode}
+                          onCheckedChange={(checked) => setQueryForm(prev => ({
+                            ...prev, 
+                            leadFilters: {...prev.leadFilters, booleanMode: !!checked}
+                          }))}
+                        />
+                        <Label htmlFor="boolean_mode">Advanced Boolean Mode</Label>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                {/* Generate Query Button */}
+                <div className="flex justify-center mt-6">
+                  <Button 
+                    onClick={handleGenerateQuery}
+                    className="gap-2"
+                    variant="outline"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    Generate LinkedIn Query
+                  </Button>
+                </div>
+              </div>
+
+              {/* Generated Query Display */}
               <div>
-                <Label htmlFor="query_string">Search Query String</Label>
-                <Input
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="query_string">Generated Search Query</Label>
+                  {queryForm.query_string && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(queryForm.query_string)}
+                      className="h-6 px-2 text-xs gap-1"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </Button>
+                  )}
+                </div>
+                <Textarea
                   id="query_string"
                   value={queryForm.query_string}
                   onChange={(e) => setQueryForm(prev => ({...prev, query_string: e.target.value}))}
-                  placeholder="e.g., site:linkedin.com/in/ software engineer"
+                  placeholder="Generated query will appear here, or you can manually enter a custom query"
+                  rows={3}
+                  className="font-mono text-sm"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This query will be used with Google Custom Search API. You can modify it manually if needed.
+                </p>
               </div>
 
+              {/* Advanced Settings */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="pages_requested">Pages Requested</Label>
