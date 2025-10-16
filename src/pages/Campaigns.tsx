@@ -2792,7 +2792,7 @@ Return ONLY the subject line without quotes or additional text.`;
                       </SelectTrigger>
                       <SelectContent>
                         {loadingBanners ? (
-                          <SelectItem value="" disabled>Loading banners...</SelectItem>
+                          <SelectItem value="loading-banners" disabled>Loading banners...</SelectItem>
                         ) : banners.length > 0 ? (
                           banners.map((banner) => (
                             <SelectItem key={banner.id} value={banner.id}>
@@ -2800,7 +2800,7 @@ Return ONLY the subject line without quotes or additional text.`;
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="" disabled>No banners found</SelectItem>
+                          <SelectItem value="no-banners-found" disabled>No banners found</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -2816,7 +2816,7 @@ Return ONLY the subject line without quotes or additional text.`;
                       </SelectTrigger>
                       <SelectContent>
                         {loadingSmtp ? (
-                          <SelectItem value="" disabled>Loading SMTP servers...</SelectItem>
+                          <SelectItem value="loading-smtp" disabled>Loading SMTP servers...</SelectItem>
                         ) : smtpCredentials.length > 0 ? (
                           smtpCredentials.map((smtp) => (
                             <SelectItem key={smtp.id} value={smtp.id}>
@@ -2824,7 +2824,7 @@ Return ONLY the subject line without quotes or additional text.`;
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="" disabled>No SMTP servers found</SelectItem>
+                          <SelectItem value="no-smtp-found" disabled>No SMTP servers found</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -2993,7 +2993,17 @@ Return ONLY the subject line without quotes or additional text.`;
                   </Button>
                   <Button 
                     onClick={createCampaign} 
-                    disabled={creatingCampaign || !campaignForm.name || !campaignForm.subject_template || !campaignForm.company_banner_id || !campaignForm.smtp_credential_id}
+                    disabled={
+                      creatingCampaign || 
+                      !campaignForm.name || 
+                      !campaignForm.subject_template || 
+                      !campaignForm.company_banner_id || 
+                      campaignForm.company_banner_id === 'loading-banners' || 
+                      campaignForm.company_banner_id === 'no-banners-found' ||
+                      !campaignForm.smtp_credential_id || 
+                      campaignForm.smtp_credential_id === 'loading-smtp' || 
+                      campaignForm.smtp_credential_id === 'no-smtp-found'
+                    }
                   >
                     {creatingCampaign && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Create Campaign
@@ -3094,7 +3104,7 @@ Return ONLY the subject line without quotes or additional text.`;
                             }}
                           >
                           <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                            <div className="flex-1">/send-emails
                               <div className="flex items-center gap-2 mb-1">
                                 <input
                                   type="checkbox"

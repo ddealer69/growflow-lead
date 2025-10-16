@@ -38,6 +38,11 @@ export function AppSidebar() {
   return (
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent>
+        {/* Logo Section */}
+        <div className="p-4 border-b flex justify-center">
+          <img src="/ai4profit-logo.jpg" alt="Logo" className="h-12 w-auto" />
+        </div>
+        
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>

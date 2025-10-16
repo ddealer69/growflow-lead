@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { API_CONFIG } from "@/config/api";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,11 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [accountName, setAccountName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [enteredOtp, setEnteredOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
 
@@ -22,6 +28,75 @@ export default function Auth() {
       navigate("/");
     }
   }, [user, navigate]);
+
+  const sendOtp = async () => {
+    if (!email) {
+      toast.error("Please enter your email first");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setGeneratedOtp(data.otp.toString());
+        setOtpSent(true);
+        toast.success("OTP sent to your email successfully!");
+      } else {
+        toast.error(data.message || "Failed to send OTP. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      if (error instanceof Error && error.message.includes('404')) {
+        toast.error("OTP service is not available. Please contact support.");
+      } else if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        toast.error("Network error. Please check your connection and try again.");
+      } else {
+        toast.error("Failed to send OTP. Please try again.");
+      }
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyOtp = () => {
+    if (!enteredOtp) {
+      toast.error("Please enter the OTP");
+      return;
+    }
+
+    if (enteredOtp === generatedOtp) {
+      setOtpVerified(true);
+      toast.success("Email verified successfully!");
+    } else {
+      toast.error("Invalid OTP. Please check your email and try again.", {
+        action: {
+          label: "Resend OTP",
+          onClick: sendOtp,
+        },
+      });
+    }
+  };
+
+  const resetOtpState = () => {
+    setOtpSent(false);
+    setOtpVerified(false);
+    setEnteredOtp("");
+    setGeneratedOtp("");
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +124,11 @@ export default function Auth() {
       return;
     }
 
+    if (!otpVerified) {
+      toast.error("Please verify your email first");
+      return;
+    }
+
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
@@ -67,6 +147,7 @@ export default function Auth() {
       setPassword("");
       setFullName("");
       setAccountName("");
+      resetOtpState();
       // Switch to signin tab programmatically
       const signinTab = document.querySelector('[value="signin"]') as HTMLElement;
       if (signinTab) {
@@ -144,15 +225,64 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        // Reset OTP state when email changes
+                        if (otpSent || otpVerified) {
+                          resetOtpState();
+                        }
+                      }}
+                      required
+                      className={otpVerified ? "border-green-500" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={sendOtp}
+                      disabled={!email || otpLoading || otpVerified}
+                      className="whitespace-nowrap"
+                    >
+                      {otpLoading ? "Sending..." : otpVerified ? "Verified" : "Verify Email"}
+                    </Button>
+                  </div>
+                  {otpVerified && (
+                    <p className="text-xs text-green-600">✓ Email verified successfully</p>
+                  )}
                 </div>
+                
+                {/* OTP Input - only show after OTP is sent */}
+                {otpSent && !otpVerified && (
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-input">Enter OTP</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="otp-input"
+                        type="text"
+                        placeholder="6-digit OTP"
+                        value={enteredOtp}
+                        onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={verifyOtp}
+                        disabled={enteredOtp.length !== 6}
+                      >
+                        Verify
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Check your email for the 6-digit verification code
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
                   <Input
@@ -164,9 +294,14 @@ export default function Auth() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || !otpVerified}>
                   {loading ? "Creating account..." : "Sign Up"}
                 </Button>
+                {!otpVerified && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Please verify your email before creating an account
+                  </p>
+                )}
               </form>
             </TabsContent>
           </Tabs>
