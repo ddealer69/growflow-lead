@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2 } from "lucide-react";
+import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2, X, Sparkles, FileText, Edit, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
@@ -226,6 +226,10 @@ export default function Campaigns() {
   const [addingLeads, setAddingLeads] = useState(false);
   const [showCampaignLeads, setShowCampaignLeads] = useState(false);
   const [selectedCampaignForLeads, setSelectedCampaignForLeads] = useState<Campaign | null>(null);
+  const [activeTab, setActiveTab] = useState<'company' | 'campaigns' | 'templates'>('company');
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [selectedFormTemplate, setSelectedFormTemplate] = useState<string>("");
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
     subject_template: "",
@@ -242,130 +246,851 @@ export default function Campaigns() {
   const demoHtmlTemplate = `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width" />
-  <title>Blue Email Template</title>
-  <style>
-    /* MOBILE - some clients ignore media queries but many support them */
-    @media only screen and (max-width:600px) {
-      .container { width: 100% !important; }
-      .stack { display:block !important; width:100% !important; }
-      .hero-img { width:100% !important; height:auto !important; }
-      .padding-sm { padding: 12px !important; }
-      .h1 { font-size: 22px !important; line-height: 28px !important; }
-      .p { font-size: 15px !important; line-height:22px !important; }
-    }
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Professional Email Template</title>
+    <style>
+        /* MOBILE - some clients ignore media queries but many support them */
+        @media only screen and (max-width:600px) {
+            .container { width: 100% !important; }
+            .stack { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+            .hero-img { width:100% !important; height:auto !important; }
+            .padding-sm { padding: 12px !important; }
+            .h1 { font-size: 24px !important; line-height: 32px !important; }
+            .p { font-size: 15px !important; line-height:22px !important; }
+            /* Adjust padding on mobile for stacked columns */
+            .stack-padding { padding-bottom: 24px !important; }
+        }
+    </style>
 </head>
-<body style="margin:0; padding:0; background-color:#f3f6fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f3f6fb;">
-    <tr>
-      <td align="center" style="padding:24px;">
-        <!-- Container -->
-        <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(3, 48, 86, 0.08);">
-          <!-- Header -->
-          <tr>
-            <td style="padding:18px 24px; background: linear-gradient(90deg,#0b6fed 0%, #2aa0ff 100%); color:#ffffff;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td align="left" style="vertical-align:middle;">
-                    <img src="https://via.placeholder.com/120x36?text=${selectedCompany?.name || 'Logo'}" alt="Company Logo" width="120" style="display:block; border:0; outline:none; text-decoration:none;">
-                  </td>
-                  <td align="right" style="vertical-align:middle; color:#ffffff; font-size:14px;">
-                    <span style="opacity:0.95;">${selectedCompany?.name || 'Awesome Product'}</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+<body style="margin:0; padding:0; background-color:#f8f8f8; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f8f8f8;">
+        <tr>
+            <td align="center" style="padding:24px;">
+                <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:6px; overflow:hidden; border: 1px solid #eeeeee;">
+                    <tr>
+                        <td style="padding:18px 24px; background-color:#03254C; color:#ffffff;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td align="left" style="vertical-align:middle;">
+                                        <img src="https://via.placeholder.com/120x36?text=Fast+Solutions" alt="Company Logo" width="120" style="display:block; border:0; outline:none; text-decoration:none;">
+                                    </td>
+                                    <td align="right" style="vertical-align:middle; color:#D3D3D3; font-size:14px;">
+                                        <span style="opacity:0.9;">Fast Solutions</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-          <!-- Hero -->
-          <tr>
-            <td style="padding:28px 24px 8px 24px; text-align:center;">
-              <h1 class="h1" style="margin:0; font-size:28px; line-height:36px; color:#033a66;">Hello, \{\{first_name\}\} 👋</h1>
-              <p class="p" style="margin:12px 0 0 0; font-size:16px; line-height:24px; color:#4b6b88;">
-                Welcome to <strong>${selectedCompany?.name || 'Awesome Product'}</strong> — here's a quick summary of what's new.
-              </p>
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:32px 24px 16px 24px; text-align:center;">
+                            <h1 class="h1" style="margin:0; font-size:30px; line-height:38px; color:#03254C; font-weight:600;">Welcome, John</h1>
+                            <p class="p" style="margin:16px 0 0 0; font-size:17px; line-height:26px; color:#555555;">
+                                Thank you for joining **Fast Solutions**. Here is a concise overview of what's new.
+                            </p>
+                        </td>
+                    </tr>
 
-          <!-- Hero image -->
-          <tr>
-            <td style="padding:18px 24px; text-align:center;">
-              <img class="hero-img" src="https://via.placeholder.com/520x220.png?text=Campaign+Hero+Image" alt="Hero image" width="520" style="display:block; width:100%; max-width:520px; border-radius:8px; border:0; outline:none;">
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:16px 24px; text-align:center;">
+                            <img class="hero-img" src="https://via.placeholder.com/520x220.png?text=Professional+Campaign+Image" alt="Hero image" width="552" style="display:block; width:100%; max-width:552px; border-radius:4px; border:0; outline:none; height:auto;">
+                        </td>
+                    </tr>
 
-          <!-- Content row -->
-          <tr>
-            <td style="padding:16px 24px 24px 24px;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td class="stack" style="width:50%; padding-right:12px; vertical-align:top;">
-                    <h3 style="margin:0 0 8px 0; font-size:18px; color:#033a66;">Feature Update</h3>
-                    <p style="margin:0; font-size:14px; color:#4b6b88; line-height:20px;">
-                      We shipped a faster onboarding flow and improved analytics to help you measure impact in minutes.
-                    </p>
-                  </td>
-                  <td class="stack" style="width:50%; padding-left:12px; vertical-align:top;">
-                    <h3 style="margin:0 0 8px 0; font-size:18px; color:#033a66;">Pro Tip</h3>
-                    <p style="margin:0; font-size:14px; color:#4b6b88; line-height:20px;">
-                      Use the new integrations panel to connect your tools — setup takes less than 2 minutes.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:24px 24px 12px 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td class="stack stack-padding" style="width:50%; padding-right:12px; vertical-align:top;">
+                                        <h3 style="margin:0 0 10px 0; font-size:19px; color:#03254C; font-weight:600;">Feature Update</h3>
+                                        <p style="margin:0; font-size:15px; color:#555555; line-height:22px;">
+                                            We have implemented a more efficient onboarding process and enhanced analytics for quicker impact measurement.
+                                        </p>
+                                    </td>
+                                    <td class="stack" style="width:50%; padding-left:12px; vertical-align:top;">
+                                        <h3 style="margin:0 0 10px 0; font-size:19px; color:#03254C; font-weight:600;">Best Practice</h3>
+                                        <p style="margin:0; font-size:15px; color:#555555; line-height:22px;">
+                                            Utilize the new integrations panel to connect your essential tools; configuration takes less than two minutes.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-          <!-- CTA -->
-          <tr>
-            <td style="padding:0 24px 28px 24px; text-align:center;">
-              <a href="https://example.com/get-started" style="display:inline-block; text-decoration:none; border-radius:8px; padding:12px 22px; font-weight:600; font-size:16px; color:#ffffff; background: linear-gradient(90deg,#0b6fed 0%, #2aa0ff 100%); box-shadow:0 6px 14px rgba(10, 88, 200, 0.12);">
-                Get started — it's free
-              </a>
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:24px 24px 32px 24px; text-align:center;">
+                            <a href="https://example.com/view-details" style="display:inline-block; text-decoration:none; border-radius:6px; padding:12px 28px; font-weight:600; font-size:16px; color:#ffffff; background-color:#03254C; border:1px solid #03254C; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(3, 37, 76, 0.1);">
+                                Explore the Details
+                            </a>
+                        </td>
+                    </tr>
 
-          <!-- Divider -->
-          <tr>
-            <td style="padding:0 24px;">
-              <hr style="border:none; height:1px; background:#eef4fb; margin:0;">
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:0 24px;">
+                            <hr style="border:none; height:1px; background:#eef4fb; margin:0;">
+                        </td>
+                    </tr>
 
-          <!-- Footer content -->
-          <tr>
-            <td style="padding:18px 24px; font-size:13px; color:#6b7b8f;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td style="vertical-align:top;">
-                    <strong style="color:#033a66;">${selectedCompany?.name || 'Awesome Product'}</strong><br>
-                    ${selectedCompany?.domain ? `${selectedCompany.domain}` : '123 Blueway St. · Suite 400'}<br>
-                    City, Country
-                  </td>
-                  <td align="right" style="vertical-align:top;">
-                    <a href="https://example.com/preferences" style="color:#2aa0ff; text-decoration:none; font-size:13px;">Manage preferences</a><br>
-                    <a href="https://example.com/unsubscribe" style="color:#9fbfe8; text-decoration:none; font-size:13px;">Unsubscribe</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+                    <tr>
+                        <td style="padding:20px 24px; font-size:13px; color:#888888;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td style="vertical-align:top;">
+                                        <strong style="color:#03254C;">Fast Solutions</strong><br>
+                                        <a href="https://fastsolutions.com" style="color:#6495ED; text-decoration:none;">fastsolutions.com</a><br>
+                                        [Address Line 1]<br>
+                                        [City, Country, Zip]
+                                    </td>
+                                    <td align="right" style="vertical-align:top; padding-top: 4px;">
+                                        <a href="https://example.com/preferences" style="color:#6495ED; text-decoration:none; font-size:13px;">Manage Preferences</a><br>
+                                        <a href="https://example.com/unsubscribe" style="color:#aaaaaa; text-decoration:none; font-size:13px;">Unsubscribe</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-          <!-- Small legal -->
-          <tr>
-            <td style="padding:0 24px 20px 24px; font-size:12px; color:#9aa9bf; text-align:center;">
-              <span>© \{\{year\}\} ${selectedCompany?.name || 'Awesome Product'}. All rights reserved.</span>
-            </td>
-          </tr>
-        </table>
-        <!-- /Container -->
-      </td>
-    </tr>
-  </table>
+                    <tr>
+                        <td style="padding:0 24px 24px 24px; font-size:12px; color:#aaaaaa; text-align:center;">
+                            <span>© 2024 Fast Solutions. All rights reserved.</span>
+                        </td>
+                    </tr>
+                </table>
+                </td>
+        </tr>
+    </table>
 </body>
 </html>`;
+
+  // State for AI generation
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [aiContentType, setAiContentType] = useState<'text' | 'template'>('template');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiGeneratedContent, setAiGeneratedContent] = useState('');
+  const [showRefineAi, setShowRefineAi] = useState(false);
+  const [refinePrompt, setRefinePrompt] = useState('');
+
+  // Gemini API configuration
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!GEMINI_API_KEY) {
+    console.error('VITE_GEMINI_API_KEY not found in environment variables');
+  }
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+
+  // System prompts for AI generation
+  const getSystemPrompt = (type: 'text' | 'template', isRefining: boolean = false) => {
+    if (type === 'text') {
+      return isRefining 
+        ? `You are an expert email copywriter. Refine the provided email text based on the user's feedback while maintaining professionalism and clarity. 
+
+Key requirements:
+- Keep the tone professional yet engaging
+- Maintain proper email structure with greeting, body, and closing
+- Include {{first_name}} placeholder for personalization
+- Include {{company_name}} placeholder where appropriate
+- Make it concise but impactful
+- Focus on clear call-to-action
+- Ensure mobile-friendly readability
+
+Return ONLY the refined email text without any additional formatting or explanations.`
+        : `You are an expert email copywriter. Create a professional email text based on the user's requirements.
+
+Key requirements:
+- Create engaging, professional email content
+- Include {{first_name}} placeholder for personalization
+- Include {{company_name}} placeholder where appropriate
+- Structure should include: greeting, main content, call-to-action, and professional closing
+- Keep it concise yet impactful (150-300 words)
+- Make it conversion-focused with clear value proposition
+- Ensure tone matches business communication standards
+
+Return ONLY the email text content without any additional formatting or explanations.`;
+    } else {
+      return isRefining
+        ? `You are an expert HTML email template designer. Refine the provided HTML email template based on the user's feedback while maintaining responsive design and professional appearance.
+
+Key requirements:
+- Maintain mobile-responsive design with proper media queries
+- Keep clean, professional HTML structure with inline CSS
+- Include these essential placeholders: {{first_name}}, {{company_name}}, {{year}}
+- Ensure cross-email-client compatibility
+- Include proper header with company logo placeholder
+- Include hero section with main message
+- Include content sections (features, updates, announcements)
+- Include call-to-action button
+- Include footer with company details and unsubscribe links
+- Use professional typography and spacing
+- Maintain accessibility standards
+
+Return ONLY the complete HTML template without any additional explanations or markdown formatting.`
+        : `You are an expert HTML email template designer. Create a professional, mobile-responsive HTML email template based on the user's requirements.
+
+Key requirements:
+- Create complete HTML email template with responsive design
+- Include mobile-responsive CSS with media queries for screens under 600px
+- Use inline CSS for maximum email client compatibility
+- Include these essential placeholders: {{first_name}}, {{company_name}}, {{year}}
+- Structure must include:
+  * DOCTYPE and proper HTML structure
+  * Header section with company logo placeholder
+  * Hero section with personalized greeting
+  * Main content area with 2-3 sections for features/updates
+  * Call-to-action button
+  * Footer with company details and preference/unsubscribe links
+- Use professional typography and spacing
+- Ensure proper table-based layout for email compatibility
+- Include proper alt texts and accessibility features
+- Make it conversion-focused and visually appealing
+
+Return ONLY the complete HTML template without any additional explanations or markdown formatting.`;
+    }
+  };
+
+  // Generate email subject based on content
+  const generateEmailSubject = async (content: string, type: 'text' | 'template') => {
+    const subjectPrompt = `Based on the following email ${type}, generate a compelling email subject line that is:
+- 30-50 characters long
+- Engaging and click-worthy
+- Professional and clear
+- Includes {{company_name}} placeholder if appropriate
+
+Email content: ${content.substring(0, 500)}...
+
+Return ONLY the subject line without quotes or additional text.`;
+
+    try {
+      const response = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: subjectPrompt
+            }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Subject generation failed:', response.status);
+        return 'Welcome to {{company_name}}!';
+      }
+
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Welcome to {{company_name}}!';
+    } catch (error) {
+      console.error('Error generating subject:', error);
+      return 'Welcome to {{company_name}}!';
+    }
+  };
+
+  // AI generation function
+  const generateAiContent = async () => {
+    if (!aiPrompt.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a description for your email content",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!GEMINI_API_KEY) {
+      toast({
+        title: "Configuration Error",
+        description: "Gemini API key not configured. Please check your environment variables.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingAi(true);
+    try {
+      const systemPrompt = getSystemPrompt(aiContentType, false);
+      const fullPrompt = `${systemPrompt}\n\nUser requirements: ${aiPrompt}`;
+
+      const requestBody = {
+        contents: [{
+          parts: [{
+            text: fullPrompt
+          }]
+        }]
+      };
+
+      console.log('Making request to:', GEMINI_API_URL);
+      console.log('Request body:', requestBody);
+
+      const response = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      const generatedContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (generatedContent) {
+        setAiGeneratedContent(generatedContent);
+        
+        // Apply to campaign form
+        setCampaignForm(prev => ({...prev, body_template: generatedContent}));
+        
+        // Generate and apply subject
+        const subject = await generateEmailSubject(generatedContent, aiContentType);
+        setCampaignForm(prev => ({...prev, subject_template: subject}));
+        
+        toast({
+          title: "Content Generated!",
+          description: `AI has generated your ${aiContentType} content and applied it to the campaign form.`,
+        });
+      } else {
+        console.error('No content in response:', data);
+        throw new Error('No content generated - API returned empty response');
+      }
+    } catch (error) {
+      console.error('Error generating content:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate content. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  // AI refinement function
+  const refineAiContent = async () => {
+    if (!refinePrompt.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter refinement instructions",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!GEMINI_API_KEY) {
+      toast({
+        title: "Configuration Error",
+        description: "Gemini API key not configured. Please check your environment variables.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingAi(true);
+    try {
+      const systemPrompt = getSystemPrompt(aiContentType, true);
+      const fullPrompt = `${systemPrompt}\n\nCurrent content:\n${aiGeneratedContent}\n\nRefinement instructions: ${refinePrompt}`;
+
+      const response = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: fullPrompt
+            }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const refinedContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (refinedContent) {
+        setAiGeneratedContent(refinedContent);
+        
+        // Apply to campaign form
+        setCampaignForm(prev => ({...prev, body_template: refinedContent}));
+        
+        // Generate and apply new subject
+        const subject = await generateEmailSubject(refinedContent, aiContentType);
+        setCampaignForm(prev => ({...prev, subject_template: subject}));
+        
+        setShowRefineAi(false);
+        setRefinePrompt('');
+        
+        toast({
+          title: "Content Refined!",
+          description: "AI has refined your content and updated the campaign form.",
+        });
+      } else {
+        throw new Error('No refined content generated');
+      }
+    } catch (error) {
+      console.error('Error refining content:', error);
+      toast({
+        title: "Refinement Failed",
+        description: error instanceof Error ? error.message : "Failed to refine content. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  // Email templates data
+  const emailTemplates = [
+    {
+      id: 'professional',
+      name: 'Professional Welcome',
+      description: 'Clean professional template with company branding',
+      category: 'Welcome',
+      preview: 'https://via.placeholder.com/300x200/03254C/ffffff?text=Professional+Welcome',
+      htmlContent: demoHtmlTemplate
+    },
+    {
+      id: 'modern',
+      name: 'Monochromatic Gray',
+      description: 'Clean monochromatic design with professional gray styling',
+      category: 'Newsletter',
+      preview: 'https://via.placeholder.com/300x200/111111/ffffff?text=Monochromatic+Gray',
+      htmlContent: `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Monochromatic Gray Template</title>
+    <style>
+        @media only screen and (max-width:600px) {
+            .container { width: 100% !important; }
+            .stack { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+            .hero-img { width:100% !important; height:auto !important; }
+            .h1 { font-size: 26px !important; line-height: 34px !important; }
+            .p { font-size: 15px !important; line-height:22px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#fefefe; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#fefefe;">
+        <tr>
+            <td align="center" style="padding:24px;">
+                <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:3px; overflow:hidden; border: 1px solid #e0e0e0;">
+                    <tr>
+                        <td style="padding:16px 24px; background-color:#111111; color:#ffffff;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td align="left" style="vertical-align:middle;">
+                                        <img src="https://via.placeholder.com/100x30?text=Fast+Solutions" alt="Company Logo" width="100" style="display:block; border:0; outline:none; text-decoration:none;">
+                                    </td>
+                                    <td align="right" style="vertical-align:middle; color:#aaaaaa; font-size:14px; font-weight:lighter;">
+                                        Fast Solutions Update
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:32px 28px 16px 28px; text-align:left;">
+                            <h1 class="h1" style="margin:0; font-size:32px; line-height:40px; color:#222222; font-weight:300;">Announcement: Latest Updates</h1>
+                            <p class="p" style="margin:16px 0 0 0; font-size:17px; line-height:26px; color:#555555;">
+                                Dear John, we are pleased to share the latest developments from our team.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 28px; text-align:center;">
+                            <img class="hero-img" src="https://via.placeholder.com/544x220.png?text=Minimalist+Image" alt="Hero image" width="544" style="display:block; width:100%; max-width:544px; border-radius:3px; border:0; outline:none; height:auto; border: 1px solid #e0e0e0;">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:20px 28px 10px 28px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td class="stack" style="width:50%; padding-right:15px; vertical-align:top;">
+                                        <h3 style="margin:0 0 8px 0; font-size:18px; color:#333333; font-weight:600;">Key Milestone</h3>
+                                        <p style="margin:0; font-size:15px; color:#666666; line-height:22px;">
+                                            We have finalized the new platform architecture, designed for maximum reliability and speed.
+                                        </p>
+                                    </td>
+                                    <td class="stack" style="width:50%; padding-left:15px; vertical-align:top;">
+                                        <h3 style="margin:0 0 8px 0; font-size:18px; color:#333333; font-weight:600;">Next Steps</h3>
+                                        <p style="margin:0; font-size:15px; color:#666666; line-height:22px;">
+                                            Our deployment phase begins next week. Look for a follow-up email with an exclusive preview.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:28px 28px 36px 28px; text-align:center;">
+                            <a href="https://example.com/read-report" style="display:inline-block; text-decoration:none; border-radius:3px; padding:12px 30px; font-weight:600; font-size:16px; color:#ffffff; background-color:#111111; border:1px solid #111111; letter-spacing: 0.5px;">
+                                View Full Report
+                            </a>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:0 28px;">
+                            <hr style="border:none; height:1px; background:#e0e0e0; margin:0;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:20px 28px; font-size:13px; color:#888888; text-align:center;">
+                            <a href="https://example.com/contact" style="color:#666666; text-decoration:none; margin:0 10px;">Contact Support</a> | 
+                            <a href="https://example.com/unsubscribe" style="color:#999999; text-decoration:none; margin:0 10px;">Unsubscribe</a>
+                        </td>
+                    </tr>
+                </table>
+                </td>
+        </tr>
+    </table>
+</body>
+</html>`
+    },
+    {
+      id: 'minimalist',
+      name: 'Tech Newsletter',
+      description: 'Modern tech-focused design with dark accents',
+      category: 'General',
+      preview: 'https://via.placeholder.com/300x200/0f1419/10b981?text=Tech+Newsletter',
+      htmlContent: `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Tech Newsletter Template</title>
+    <style>
+        @media only screen and (max-width:600px) {
+            .container { width: 100% !important; }
+            .stack { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+            .hero-img { width:100% !important; height:auto !important; }
+            .h1 { font-size: 24px !important; line-height: 32px !important; }
+            .p { font-size: 15px !important; line-height:22px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#0f1419; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#0f1419;">
+        <tr>
+            <td align="center" style="padding:24px;">
+                <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#1f2937; border-radius:12px; overflow:hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+                    <tr>
+                        <td style="padding:20px 24px; background-color:#374151; border-bottom: 2px solid #10b981;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td align="left" style="vertical-align:middle;">
+                                        <span style="color:#10b981; font-size:18px; font-weight:700; letter-spacing:-0.5px;">⚡ Tech Update</span>
+                                    </td>
+                                    <td align="right" style="vertical-align:middle; color:#d4f399; font-size:12px; font-weight:500;">
+                                        Latest News
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:32px 24px 16px 24px; text-align:left;">
+                            <h1 class="h1" style="margin:0; font-size:28px; line-height:36px; color:#f9fafb; font-weight:700;">Hi John!</h1>
+                            <p class="p" style="margin:16px 0 0 0; font-size:16px; line-height:24px; color:#d1fae5;">
+                                Exciting tech developments are happening. Here's what you need to know this week.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 24px; text-align:center;">
+                            <img class="hero-img" src="https://via.placeholder.com/552x200/10b981/ffffff?text=Tech+Innovation" alt="Tech hero" width="552" style="display:block; width:100%; max-width:552px; border-radius:8px; border:0; outline:none; height:auto;">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 24px 12px 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td class="stack" style="width:50%; padding-right:12px; vertical-align:top;">
+                                        <h3 style="margin:0 0 10px 0; font-size:18px; color:#10b981; font-weight:600;">Innovation</h3>
+                                        <p style="margin:0; font-size:14px; color:#9ca3af; line-height:20px;">
+                                            New AI-powered features are rolling out to enhance your workflow and productivity.
+                                        </p>
+                                    </td>
+                                    <td class="stack" style="width:50%; padding-left:12px; vertical-align:top;">
+                                        <h3 style="margin:0 0 10px 0; font-size:18px; color:#10b981; font-weight:600;">Updates</h3>
+                                        <p style="margin:0; font-size:14px; color:#9ca3af; line-height:20px;">
+                                            Performance improvements and bug fixes make everything faster and more reliable.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 24px 32px 24px; text-align:center;">
+                            <a href="https://example.com/tech-article" style="display:inline-block; text-decoration:none; border-radius:8px; padding:14px 32px; font-weight:600; font-size:16px; color:#ffffff; background-color:#059669; border:1px solid #059669; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
+                                Read Full Article
+                            </a>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:0 24px;">
+                            <hr style="border:none; height:1px; background:#374151; margin:0;">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:20px 24px; font-size:12px; color:#9ca3af; text-align:center;">
+                            <a href="https://example.com/unsubscribe" style="color:#6b7280; text-decoration:none; margin:0 10px;">Unsubscribe</a> | 
+                            <a href="https://example.com/preferences" style="color:#6b7280; text-decoration:none; margin:0 10px;">Update Preferences</a>
+                        </td>
+                    </tr>
+                </table>
+                </td>
+        </tr>
+    </table>
+</body>
+</html>`
+    },
+    {
+      id: 'promotional',
+      name: 'Product Launch',
+      description: 'Vibrant template for product announcements and launches',
+      category: 'Marketing',
+      preview: 'https://via.placeholder.com/300x200/ec3840/ffffff?text=Product+Launch',
+      htmlContent: `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Product Launch Template</title>
+    <style>
+        @media only screen and (max-width:600px) {
+            .container { width: 100% !important; }
+            .stack { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+            .hero-img { width:100% !important; height:auto !important; }
+            .h1 { font-size: 28px !important; line-height: 36px !important; }
+            .p { font-size: 15px !important; line-height:22px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background: linear-gradient(135deg, #f9689b 0%, #ec3840 100%); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background: linear-gradient(135deg, #f9689b 0%, #ec3840 100%);">
+        <tr>
+            <td align="center" style="padding:32px 20px;">
+                <table class="container" width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow: 0 16px 48px rgba(0,0,0,0.15);">
+                    <tr>
+                        <td style="padding:32px 32px 16px 32px; text-align:center; background-color:#ffffff;">
+                            <h1 style="margin:0 0 8px 0; font-size:36px; color:#ec3840; font-weight:800; letter-spacing:-1px;">🚀 LAUNCH</h1>
+                            <div style="background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%); border-radius:8px; padding:12px 20px; margin:16px 0; border-left: 4px solid #eab308;">
+                                <p style="margin:0; color:#d1031b; font-size:14px; font-weight:600;">🎨 New Product Alert</p>
+                                <p style="margin:4px 0 0 0; color:#d1031b; font-size:12px;">Introducing our game-changing solution that will transform your workflow.</p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 32px 24px 32px; text-align:left;">
+                            <h2 class="h1" style="margin:0 0 16px 0; font-size:32px; line-height:40px; color:#374151; font-weight:700;">Hi \\{\\{John\\}\\}!</h2>
+                            <p class="p" style="margin:0 0 20px 0; font-size:18px; line-height:26px; color:#6b7280;">
+                                We're thrilled to share our latest innovation with you. This breakthrough product will revolutionize how you work.
+                            </p>
+                            <div style="background:#f3f4f6; border-radius:12px; padding:24px; margin:24px 0; border: 1px solid #e5e7eb;">
+                                <h3 style="margin:0 0 12px 0; color:#1f2937; font-size:20px; font-weight:600;">Key Features</h3>
+                                <ul style="margin:0; padding-left:20px; color:#4b5563; line-height:24px;">
+                                    <li>� Advanced AI-powered automation</li>
+                                    <li>⚡ Lightning-fast performance</li>
+                                    <li>🔒 Enterprise-grade security</li>
+                                    <li>📱 Seamless mobile experience</li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 32px; text-align:center;">
+                            <img src="https://via.placeholder.com/536x200/ec3840/ffffff?text=Product+Launch+Hero" alt="Product launch" width="536" style="display:block; width:100%; max-width:536px; border-radius:12px; border:0; outline:none; height:auto; box-shadow: 0 8px 24px rgba(0,0,0,0.1);">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:32px 32px 24px 32px; text-align:center;">
+                            <a href="https://example.com/product-launch" style="display:inline-block; text-decoration:none; border-radius:12px; padding:16px 40px; font-weight:700; font-size:18px; color:#ffffff; background: linear-gradient(135deg, #ec3840 0%, #dc2626 100%); border:2px solid #dc2626; letter-spacing: 0.5px; box-shadow: 0 8px 24px rgba(220, 38, 38, 0.3); transition: all 0.3s ease;">
+                                🎉 Learn More
+                            </a>
+                            <p style="margin:16px 0 0 0; color:#9ca3af; font-size:14px;">
+                                Limited time: Early access available now!
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:0 32px;">
+                            <hr style="border:none; height:1px; background: linear-gradient(90deg, transparent 0%, #e5e7eb 50%, transparent 100%); margin:0;">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 32px; font-size:13px; color:#9ca3af; text-align:center;">
+                            <p style="margin:0 0 8px 0;">Thanks for being part of our journey!</p>
+                            <a href="https://example.com/unsubscribe" style="color:#6b7280; text-decoration:none; margin:0 8px;">Unsubscribe</a> | 
+                            <a href="https://example.com/preferences" style="color:#6b7280; text-decoration:none; margin:0 8px;">Preferences</a>
+                        </td>
+                    </tr>
+                </table>
+                </td>
+        </tr>
+    </table>
+</body>
+</html>`
+    },
+    {
+      id: 'corporate',
+      name: 'Executive Brief',
+      description: 'Sophisticated template for executive communications',
+      category: 'Business',
+      preview: 'https://via.placeholder.com/300x200/1f2937/f9fafb?text=Executive+Brief',
+      htmlContent: `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Executive Brief Template</title>
+    <style>
+        @media only screen and (max-width:600px) {
+            .container { width: 100% !important; }
+            .stack { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+            .metric-card { margin-bottom: 16px !important; }
+            .h1 { font-size: 24px !important; line-height: 32px !important; }
+            .p { font-size: 14px !important; line-height:20px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f8fafc; font-family: 'Georgia', 'Times New Roman', serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f8fafc;">
+        <tr>
+            <td align="center" style="padding:32px 20px;">
+                <table class="container" width="650" cellpadding="0" cellspacing="0" role="presentation" style="width:650px; max-width:650px; background-color:#ffffff; border-radius:4px; overflow:hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 16px rgba(0,0,0,0.05);">
+                    <tr>
+                        <td style="padding:24px 32px; background-color:#1f2937; color:#ffffff; border-bottom: 3px solid #3b82f6;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td align="left" style="vertical-align:middle;">
+                                        <h1 style="margin:0; font-size:22px; font-weight:700; letter-spacing:1px; color:#f9fafb;">EXECUTIVE BRIEF</h1>
+                                    </td>
+                                    <td align="right" style="vertical-align:middle; color:#d1d5db; font-size:14px; font-weight:500;">
+                                        Quarterly Update
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:32px 32px 16px 32px;">
+                            <div style="border-left: 4px solid #3b82f6; padding-left:16px; margin-bottom:24px;">
+                                <h2 class="h1" style="margin:0 0 8px 0; font-size:28px; line-height:36px; color:#1f2937; font-weight:600;">Dear \\{\\{John\\}\\},</h2>
+                                <p style="margin:0; color:#6b7280; font-size:16px; line-height:24px; font-style:italic;">
+                                    Your quarterly executive summary with key performance indicators and strategic updates.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:16px 32px 24px 32px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                    <td class="stack metric-card" style="width:33.33%; padding-right:16px; vertical-align:top;">
+                                        <div style="background:#f3f4f6; border-radius:8px; padding:20px; border-left: 4px solid #10b981;">
+                                            <h3 style="margin:0 0 8px 0; font-size:14px; color:#059669; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Revenue Growth</h3>
+                                            <p style="margin:0; font-size:24px; color:#1f2937; font-weight:800;">+12.3%</p>
+                                            <p style="margin:4px 0 0 0; font-size:12px; color:#6b7280;">vs. previous quarter</p>
+                                        </div>
+                                    </td>
+                                    <td class="stack metric-card" style="width:33.33%; padding:0 8px; vertical-align:top;">
+                                        <div style="background:#f3f4f6; border-radius:8px; padding:20px; border-left: 4px solid #3b82f6;">
+                                            <h3 style="margin:0 0 8px 0; font-size:14px; color:#2563eb; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Market Expansion</h3>
+                                            <p style="margin:0; font-size:24px; color:#1f2937; font-weight:800;">3 Regions</p>
+                                            <p style="margin:4px 0 0 0; font-size:12px; color:#6b7280;">new territories opened</p>
+                                        </div>
+                                    </td>
+                                    <td class="stack metric-card" style="width:33.33%; padding-left:16px; vertical-align:top;">
+                                        <div style="background:#f3f4f6; border-radius:8px; padding:20px; border-left: 4px solid #f59e0b;">
+                                            <h3 style="margin:0 0 8px 0; font-size:14px; color:#d97706; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Team Growth</h3>
+                                            <p style="margin:0; font-size:24px; color:#1f2937; font-weight:800;">+25%</p>
+                                            <p style="margin:4px 0 0 0; font-size:12px; color:#6b7280;">headcount increase</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 32px;">
+                            <h3 style="margin:0 0 16px 0; color:#1f2937; font-size:18px; font-weight:600;">Strategic Initiatives</h3>
+                            <div style="background:#fefefe; border:1px solid #e5e7eb; border-radius:6px; padding:20px;">
+                                <ul style="margin:0; padding-left:20px; color:#374151; line-height:28px; font-size:15px;">
+                                    <li style="margin-bottom:8px;">✓ Digital transformation roadmap completed ahead of schedule</li>
+                                    <li style="margin-bottom:8px;">✓ Strategic partnerships established in APAC region</li>
+                                    <li style="margin-bottom:8px;">✓ AI integration pilot program shows 23% efficiency gains</li>
+                                    <li style="margin-bottom:0;">→ Q4 focus: Platform scalability and international expansion</li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:24px 32px 32px 32px; text-align:center;">
+                            <a href="https://example.com/executive-dashboard" style="display:inline-block; text-decoration:none; border-radius:4px; padding:14px 32px; font-weight:600; font-size:16px; color:#ffffff; background-color:#1f2937; border:2px solid #1f2937; letter-spacing: 0.5px;">
+                                View Full Dashboard
+                            </a>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:0 32px;">
+                            <hr style="border:none; height:1px; background:#e5e7eb; margin:0;">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding:20px 32px; font-size:12px; color:#9ca3af; text-align:center;">
+                            <p style="margin:0 0 4px 0; font-weight:600;">Confidential | Executive Only</p>
+                            <p style="margin:0;">\\{\\{company_name\\}\\} Executive Communications • \\{\\{year\\}\\}</p>
+                        </td>
+                    </tr>
+                </table>
+                </td>
+        </tr>
+    </table>
+</body>
+</html>`
+    }
+  ];
 
   // Get the current template (custom if modified, otherwise demo)
   const getCurrentTemplate = () => {
@@ -1749,8 +2474,9 @@ export default function Campaigns() {
             </CardContent>
           </Card>
         ) : (
-        // Company Campaign Detail View
+        // Single Page Layout with 3 sections
         <div className="space-y-6">
+          {/* Header with Company Name and Navigation */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="sm" onClick={handleBackToCompanies}>
@@ -1758,108 +2484,135 @@ export default function Campaigns() {
                 Back to Companies
               </Button>
               <div>
-                <h1 className="text-3xl font-bold">{selectedCompany.name} Campaigns</h1>
+                <h1 className="text-3xl font-bold">{selectedCompany.name}</h1>
                 <p className="text-muted-foreground">
-                  Email and LinkedIn campaign management for {selectedCompany.name}
+                  Campaign Management for {selectedCompany.name}
                 </p>
               </div>
             </div>
-            <Button onClick={() => setShowCreateCampaign(true)} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Campaign
-            </Button>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Company Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Company Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <span className="font-medium">Name:</span> {selectedCompany.name}
-                </div>
-                {selectedCompany.domain && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Domain:</span>
-                    <a 
-                      href={`https://${selectedCompany.domain}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline flex items-center gap-1"
-                    >
-                      {selectedCompany.domain}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium">Status:</span>
-                  <Badge variant={selectedCompany.is_active ? "default" : "secondary"} className="ml-2">
-                    {selectedCompany.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="font-medium">Created:</span> {new Date(selectedCompany.created_at).toLocaleString()}
-                </div>
-                {selectedCompany.notes && (
-                  <div>
-                    <span className="font-medium">Notes:</span>
-                    <p className="mt-1 text-sm text-muted-foreground">{selectedCompany.notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Tabs for 3 Main Sections */}
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'company' | 'campaigns' | 'templates')}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="company">Company Information</TabsTrigger>
+              <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+              <TabsTrigger value="templates">Templates</TabsTrigger>
+            </TabsList>
 
-            {/* Company Banners */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Banners ({selectedCompany.banners.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {selectedCompany.banners.length > 0 ? (
-                  <div className="space-y-4">
-                    {selectedCompany.banners.map((banner) => (
-                      <div key={banner.id} className="border rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2">
-                            <h4 className="font-medium">{banner.name}</h4>
-                            {banner.signature && (
-                              <p className="text-sm text-muted-foreground">{banner.signature}</p>
-                            )}
-                          </div>
-                          <Badge variant={banner.is_active ? "default" : "secondary"}>
-                            {banner.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
+            {/* Company Information Tab */}
+            <TabsContent value="company" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Company Details */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Company Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <span className="font-medium">Name:</span> {selectedCompany.name}
+                    </div>
+                    {selectedCompany.domain && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Domain:</span>
+                        <a 
+                          href={`https://${selectedCompany.domain}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline flex items-center gap-1"
+                        >
+                          {selectedCompany.domain}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No banners found for this company.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Campaigns List */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
-                    Campaigns ({campaigns.length})
-                    {loadingCampaigns && (
-                      <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                     )}
+                    <div>
+                      <span className="font-medium">Status:</span>
+                      <Badge variant={selectedCompany.is_active ? "default" : "secondary"} className="ml-2">
+                        {selectedCompany.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="font-medium">Created:</span> {new Date(selectedCompany.created_at).toLocaleString()}
+                    </div>
+                    {selectedCompany.notes && (
+                      <div>
+                        <span className="font-medium">Notes:</span>
+                        <p className="mt-1 text-sm text-muted-foreground">{selectedCompany.notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Company Banners */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Company Banners ({selectedCompany.banners.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedCompany.banners.length > 0 ? (
+                      <div className="space-y-4">
+                        {selectedCompany.banners.map((banner) => (
+                          <div key={banner.id} className="border rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-medium">{banner.name}</h4>
+                                {banner.logo_url && (
+                                  <img 
+                                    src={banner.logo_url} 
+                                    alt={banner.name}
+                                    className="mt-2 max-w-[200px] h-auto rounded border"
+                                  />
+                                )}
+                                {banner.signature && (
+                                  <p className="text-sm text-muted-foreground mt-2">{banner.signature}</p>
+                                )}
+                              </div>
+                              <Badge variant={banner.is_active ? "default" : "secondary"}>
+                                {banner.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No banners found for this company.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Campaigns Tab */}
+            <TabsContent value="campaigns" className="space-y-6">
+              {/* Add Campaign Button */}
+              <div className="flex justify-end">
+                <Button onClick={() => {
+                  setShowCreateCampaign(true);
+                  setSelectedFormTemplate("");
+                }} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Campaign
+                </Button>
+              </div>
+
+              {/* Campaigns List */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Campaigns ({campaigns.length})
+                        {loadingCampaigns && (
+                          <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                        )}
                   </CardTitle>
                   <CardDescription>
                     {loadingCampaigns 
@@ -2117,43 +2870,125 @@ export default function Campaigns() {
 
                 <div>
                   <Label htmlFor="body_template">Email Body Template</Label>
-                  <Textarea
-                    id="body_template"
-                    value={campaignForm.body_template}
-                    onChange={(e) => setCampaignForm(prev => ({...prev, body_template: e.target.value}))}
-                    placeholder="Enter your email HTML template or use the template below..."
-                    rows={6}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      const currentTemplate = getCurrentTemplate();
-                      setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
-                      toast({
-                        title: "Template Applied",
-                        description: isTemplateModified ? "Custom template applied to campaign" : "Demo template applied to campaign",
-                      });
-                    }}
-                  >
-                    {isTemplateModified ? "Use Custom Template" : "Use Demo Template"}
-                  </Button>
-                </div>
+                  <div className="space-y-3">
+                    {/* AI Generation Button */}
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Email Content:</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAiGenerator(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Generate with AI
+                      </Button>
+                    </div>
 
-                {/* Pre-filled values display */}
-                <div className="bg-muted p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Pre-filled Information:</h4>
-                  <div className="grid gap-2 text-sm">
-                    <div><span className="font-medium">Account ID:</span> <code>{accountId}</code></div>
-                    <div><span className="font-medium">Company ID:</span> <code>{selectedCompany.id}</code></div>
-                    <div><span className="font-medium">Created By:</span> <code>{user?.id}</code></div>
+                    {/* Template Selector Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="template_select" className="text-sm font-medium">Choose from templates:</Label>
+                      <Select 
+                        value={selectedFormTemplate}
+                        onValueChange={(templateId) => {
+                          const selectedTemplate = emailTemplates.find(t => t.id === templateId);
+                          if (selectedTemplate) {
+                            setSelectedFormTemplate(templateId);
+                            setCampaignForm(prev => ({...prev, body_template: selectedTemplate.htmlContent}));
+                            toast({
+                              title: "Template Applied",
+                              description: `${selectedTemplate.name} template applied to campaign`,
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-64">
+                          <SelectValue placeholder="Select a template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {emailTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{template.name}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {template.category}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Textarea
+                      id="body_template"
+                      value={campaignForm.body_template}
+                      onChange={(e) => setCampaignForm(prev => ({...prev, body_template: e.target.value}))}
+                      placeholder="Enter your email HTML template or select from templates above..."
+                      rows={6}
+                    />
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const currentTemplate = getCurrentTemplate();
+                          setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
+                          toast({
+                            title: "Template Applied",
+                            description: isTemplateModified ? "Custom template applied to campaign" : "Demo template applied to campaign",
+                          });
+                        }}
+                      >
+                        {isTemplateModified ? "Use Custom Template" : "Use Demo Template"}
+                      </Button>
+                      
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCampaignForm(prev => ({...prev, body_template: ""}));
+                          toast({
+                            title: "Template Cleared",
+                            description: "Email template cleared",
+                          });
+                        }}
+                      >
+                        Clear Template
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Template Preview */}
+                  {campaignForm.body_template && (
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium">Template Preview:</Label>
+                      <div className="mt-2 border rounded-lg bg-gray-50 p-4">
+                        <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
+                          <iframe
+                            srcDoc={campaignForm.body_template}
+                            className="w-full h-[500px] border-0 rounded-lg"
+                            title="Email Template Preview"
+                            sandbox="allow-same-origin"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Preview of the selected email template. This will be sent to campaign recipients.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowCreateCampaign(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setShowCreateCampaign(false);
+                    setSelectedFormTemplate("");
+                  }}>
                     Cancel
                   </Button>
                   <Button 
@@ -2425,171 +3260,494 @@ export default function Campaigns() {
             </Card>
           )}
 
-          {/* HTML Email Template Visualization */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Email Campaign Template
-                {isTemplateModified && (
-                  <Badge variant="secondary" className="ml-2">
-                    Modified
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Preview and edit email campaign templates for {selectedCompany.name}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="preview" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="preview" className="flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Preview
-                  </TabsTrigger>
-                  <TabsTrigger value="code" className="flex items-center gap-2">
-                    <Code className="h-4 w-4" />
-                    HTML Code
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="preview" className="space-y-4">
-                  <div className="border rounded-lg bg-gray-50 p-4">
-                    <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
-                      <iframe
-                        srcDoc={getCurrentTemplate()}
-                        className="w-full h-[600px] border-0 rounded-lg"
-                        title="Email Template Preview"
-                        sandbox="allow-same-origin"
-                      />
+          {/* AI Generation Dialog */}
+          {showAiGenerator && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white/95 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">Generate Email with AI</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Create professional email content powered by AI
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      This is a live preview of your email template with {selectedCompany.name}'s branding
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setCustomHtmlTemplate(demoHtmlTemplate);
-                          setIsTemplateModified(false);
-                          toast({
-                            title: "Template Reset",
-                            description: "Template reset to default demo template",
-                          });
-                        }}
-                        disabled={!isTemplateModified}
-                      >
-                        Reset to Default
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const currentTemplate = getCurrentTemplate();
-                          setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
-                          toast({
-                            title: "Template Applied",
-                            description: "Current template applied to campaign form",
-                          });
-                        }}
-                      >
-                        Apply to Campaign
-                      </Button>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="code" className="space-y-4">
-                  <div className="relative">
-                    <Textarea
-                      value={isTemplateModified ? customHtmlTemplate : demoHtmlTemplate}
-                      onChange={(e) => {
-                        setCustomHtmlTemplate(e.target.value);
-                        setIsTemplateModified(true);
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowAiGenerator(false);
+                        setAiPrompt('');
+                        setAiGeneratedContent('');
+                        setShowRefineAi(false);
+                        setRefinePrompt('');
                       }}
-                      className="font-mono text-xs min-h-[600px] max-h-[600px] overflow-y-auto bg-gray-900 text-gray-100 border-gray-700"
-                      placeholder="Enter your HTML email template..."
-                    />
-                    <div className="absolute top-2 right-2 flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="bg-white/90 hover:bg-white text-black"
-                        onClick={() => {
-                          navigator.clipboard.writeText(getCurrentTemplate());
-                          toast({
-                            title: "Copied!",
-                            description: "HTML code copied to clipboard",
-                          });
-                        }}
-                      >
-                        Copy HTML
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="bg-white/90 hover:bg-white text-black"
-                        onClick={() => {
-                          setCustomHtmlTemplate(demoHtmlTemplate);
-                          setIsTemplateModified(false);
-                          toast({
-                            title: "Template Reset",
-                            description: "Template reset to default",
-                          });
-                        }}
-                        disabled={!isTemplateModified}
-                      >
-                        Reset
-                      </Button>
-                    </div>
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      {isTemplateModified 
-                        ? `Custom HTML template for ${selectedCompany.name}. Variables like {{first_name}} and {{year}} will be replaced during sending.`
-                        : `Default HTML template for ${selectedCompany.name}. Variables like {{first_name}} and {{year}} will be replaced during sending.`
-                      }
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const currentTemplate = getCurrentTemplate();
-                          setCampaignForm(prev => ({...prev, body_template: currentTemplate}));
-                          toast({
-                            title: "Template Applied",
-                            description: "Current template applied to campaign form",
-                          });
-                        }}
-                      >
-                        Apply to Campaign
-                      </Button>
-                      {isTemplateModified && (
+
+                  {!aiGeneratedContent ? (
+                    // Initial Generation Form
+                    <div className="space-y-6">
+                      <div>
+                        <Label className="text-sm font-medium mb-3 block">Content Type:</Label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button
+                            type="button"
+                            variant={aiContentType === 'text' ? 'default' : 'outline'}
+                            onClick={() => setAiContentType('text')}
+                            className="flex flex-col items-center gap-2 h-auto py-4"
+                          >
+                            <FileText className="h-5 w-5" />
+                            <span>Simple Text</span>
+                            <span className="text-xs opacity-75">Plain email text</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={aiContentType === 'template' ? 'default' : 'outline'}
+                            onClick={() => setAiContentType('template')}
+                            className="flex flex-col items-center gap-2 h-auto py-4"
+                          >
+                            <Code className="h-5 w-5" />
+                            <span>Email Template</span>
+                            <span className="text-xs opacity-75">HTML email template</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="ai_prompt" className="text-sm font-medium">
+                          Describe your email content:
+                        </Label>
+                        <Textarea
+                          id="ai_prompt"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder={aiContentType === 'template' 
+                            ? "e.g., Create a welcome email template for new customers with a modern design, featuring our product updates and a call-to-action to get started..."
+                            : "e.g., Write a welcome email for new customers introducing our company, highlighting key benefits, and encouraging them to explore our platform..."
+                          }
+                          rows={4}
+                          className="mt-2"
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                          Be specific about the purpose, tone, and key messages you want to include.
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end gap-3">
                         <Button
-                          size="sm"
-                          variant="default"
+                          variant="outline"
                           onClick={() => {
-                            // Save the template (you can add API call here to save to backend)
+                            setShowAiGenerator(false);
+                            setAiPrompt('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={generateAiContent}
+                          disabled={generatingAi || !aiPrompt.trim()}
+                        >
+                          {generatingAi ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Generate {aiContentType === 'template' ? 'Template' : 'Text'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Generated Content Display
+                    <div className="space-y-6">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-sm font-medium">Generated Content:</Label>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowRefineAi(!showRefineAi)}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Refine
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(aiGeneratedContent);
+                                toast({
+                                  title: "Copied!",
+                                  description: "Content copied to clipboard",
+                                });
+                              }}
+                            >
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {aiContentType === 'template' ? (
+                          <div className="border rounded-lg bg-gray-50 p-4">
+                            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                              <iframe
+                                srcDoc={aiGeneratedContent}
+                                className="w-full h-[400px] border-0 rounded-lg"
+                                title="AI Generated Template Preview"
+                                sandbox="allow-same-origin"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg p-4 bg-gray-50 max-h-[400px] overflow-y-auto">
+                            <pre className="whitespace-pre-wrap text-sm text-gray-900 font-sans">
+                              {aiGeneratedContent}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+
+                      {showRefineAi && (
+                        <div className="border-t pt-4">
+                          <Label htmlFor="refine_prompt" className="text-sm font-medium">
+                            Refinement Instructions:
+                          </Label>
+                          <Textarea
+                            id="refine_prompt"
+                            value={refinePrompt}
+                            onChange={(e) => setRefinePrompt(e.target.value)}
+                            placeholder="e.g., Make it more professional, add a product demo section, change the tone to be more casual..."
+                            rows={3}
+                            className="mt-2"
+                          />
+                          <div className="flex justify-end gap-2 mt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowRefineAi(false);
+                                setRefinePrompt('');
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={refineAiContent}
+                              disabled={generatingAi || !refinePrompt.trim()}
+                            >
+                              {generatingAi ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Refining...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-4 w-4 mr-2" />
+                                  Refine Content
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setAiGeneratedContent('');
+                            setShowRefineAi(false);
+                            setRefinePrompt('');
+                          }}
+                        >
+                          Generate New
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setShowAiGenerator(false);
+                            setAiPrompt('');
+                            setAiGeneratedContent('');
+                            setShowRefineAi(false);
+                            setRefinePrompt('');
                             toast({
-                              title: "Template Saved",
-                              description: "Custom template saved successfully",
+                              title: "Content Applied!",
+                              description: "AI generated content has been applied to your campaign form.",
                             });
                           }}
                         >
-                          Save Template
+                          Use This Content
                         </Button>
-                      )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+            </TabsContent>
+
+            {/* Templates Tab */}
+            <TabsContent value="templates" className="space-y-6">
+              {/* Template Selection Cards */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">Email Templates</h2>
+                    <p className="text-muted-foreground">Choose from our professionally designed email templates</p>
+                  </div>
+                  <Badge variant="secondary">{emailTemplates.length} Templates</Badge>
+                </div>
+
+                {/* Template Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {emailTemplates.map((template) => (
+                    <Card 
+                      key={template.id} 
+                      className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105 border-2 hover:border-primary/50"
+                      onClick={() => {
+                        setSelectedTemplate(template);
+                        setShowTemplateDialog(true);
+                      }}
+                    >
+                      <CardContent className="p-0">
+                        {/* Template Preview Image */}
+                        <div className="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={template.preview} 
+                            alt={template.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        
+                        {/* Template Info */}
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-lg">{template.name}</h3>
+                            <Badge variant="outline" className="text-xs">
+                              {template.category}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {template.description}
+                          </p>
+                          <div className="flex items-center justify-between pt-2">
+                            <span className="text-xs text-muted-foreground">
+                              Click to preview
+                            </span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Eye className="h-3 w-3" />
+                              Preview
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Glass UI Dialog for Template Preview */}
+              {showTemplateDialog && selectedTemplate && (
+                <div 
+                  className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+                  onClick={(e) => {
+                    // Close dialog when clicking on the backdrop
+                    if (e.target === e.currentTarget) {
+                      setShowTemplateDialog(false);
+                      setSelectedTemplate(null);
+                    }
+                  }}
+                >
+                  <div className="bg-white/20 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/30 max-w-6xl w-full max-h-[90vh] overflow-hidden">
+                    {/* Dialog Header */}
+                    <div className="flex items-center justify-between p-6 border-b border-white/20">
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900">{selectedTemplate.name}</h3>
+                        <p className="text-gray-700 mt-1">{selectedTemplate.description}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="bg-white/50 border-white/30">{selectedTemplate.category}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowTemplateDialog(false);
+                            setSelectedTemplate(null);
+                          }}
+                          className="hover:bg-white/20 text-gray-800"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Dialog Content */}
+                    <div className="p-6">
+                      <Tabs defaultValue="preview" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 bg-white/30 backdrop-blur-sm border-white/20">
+                          <TabsTrigger value="preview" className="flex items-center gap-2 data-[state=active]:bg-white/50">
+                            <Eye className="h-4 w-4" />
+                            Preview
+                          </TabsTrigger>
+                          <TabsTrigger value="code" className="flex items-center gap-2 data-[state=active]:bg-white/50">
+                            <Code className="h-4 w-4" />
+                            HTML Code
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="preview" className="space-y-4 mt-6">
+                          <div className="border border-white/30 rounded-xl bg-white/20 backdrop-blur-sm p-4">
+                            <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
+                              <iframe
+                                srcDoc={selectedTemplate.htmlContent}
+                                className="w-full h-[500px] border-0 rounded-lg"
+                                title="Email Template Preview"
+                                sandbox="allow-same-origin"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between bg-white/30 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                            <p className="text-sm text-gray-700">
+                              Live preview of {selectedTemplate.name} template with {selectedCompany.name}'s branding
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setCustomHtmlTemplate(selectedTemplate.htmlContent);
+                                  setIsTemplateModified(true);
+                                  toast({
+                                    title: "Template Applied",
+                                    description: `${selectedTemplate.name} template has been applied`,
+                                  });
+                                }}
+                                className="bg-white/50 hover:bg-white/70 border-white/30"
+                              >
+                                Use This Template
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setCampaignForm(prev => ({...prev, body_template: selectedTemplate.htmlContent}));
+                                  toast({
+                                    title: "Template Applied",
+                                    description: "Template applied to campaign form",
+                                  });
+                                }}
+                                className="bg-white/50 hover:bg-white/70 border-white/30"
+                              >
+                                Apply to Campaign
+                              </Button>
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="code" className="space-y-4 mt-6">
+                          <div className="relative">
+                            <Textarea
+                              value={selectedTemplate.htmlContent}
+                              onChange={(e) => {
+                                const updatedTemplate = { ...selectedTemplate, htmlContent: e.target.value };
+                                setSelectedTemplate(updatedTemplate);
+                                setCustomHtmlTemplate(e.target.value);
+                                setIsTemplateModified(true);
+                              }}
+                              className="font-mono text-xs min-h-[500px] max-h-[500px] overflow-y-auto bg-gray-900 text-gray-100 border-gray-700"
+                              placeholder="Enter your HTML email template..."
+                            />
+                            <div className="absolute top-2 right-2 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-white/90 hover:bg-white text-black"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(selectedTemplate.htmlContent);
+                                  toast({
+                                    title: "Copied!",
+                                    description: "HTML code copied to clipboard",
+                                  });
+                                }}
+                              >
+                                Copy HTML
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="bg-white/90 hover:bg-white text-black"
+                                onClick={() => {
+                                  const originalTemplate = emailTemplates.find(t => t.id === selectedTemplate.id);
+                                  if (originalTemplate) {
+                                    setSelectedTemplate(originalTemplate);
+                                    setCustomHtmlTemplate("");
+                                    setIsTemplateModified(false);
+                                    toast({
+                                      title: "Template Reset",
+                                      description: "Template reset to original",
+                                    });
+                                  }
+                                }}
+                              >
+                                Reset
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between bg-white/50 rounded-lg p-4">
+                            <p className="text-sm text-gray-600">
+                              HTML code for {selectedTemplate.name}. Variables like {'{first_name}'} and {'{year}'} will be replaced during sending.
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setCampaignForm(prev => ({...prev, body_template: selectedTemplate.htmlContent}));
+                                  toast({
+                                    title: "Template Applied",
+                                    description: "Current template applied to campaign form",
+                                  });
+                                }}
+                                className="bg-white/70 hover:bg-white"
+                              >
+                                Apply to Campaign
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => {
+                                  setCustomHtmlTemplate(selectedTemplate.htmlContent);
+                                  setIsTemplateModified(true);
+                                  toast({
+                                    title: "Template Saved",
+                                    description: "Custom template saved successfully",
+                                  });
+                                }}
+                                className="bg-primary/80 hover:bg-primary"
+                              >
+                                Save Changes
+                              </Button>
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
         )
       ) : (
