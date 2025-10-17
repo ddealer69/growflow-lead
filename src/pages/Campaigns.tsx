@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2, X, Sparkles, FileText, Edit, Copy } from "lucide-react";
+import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2, X, Sparkles, FileText, Edit, Copy, Monitor, Smartphone, Maximize2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
@@ -231,6 +231,8 @@ export default function Campaigns() {
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [selectedFormTemplate, setSelectedFormTemplate] = useState<string>("");
+  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
+  const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
     subject_template: "",
@@ -3628,13 +3630,17 @@ Return ONLY the subject line without quotes or additional text.`;
                       }}
                     >
                       <CardContent className="p-0">
-                        {/* Template Preview Image */}
-                        <div className="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg flex items-center justify-center overflow-hidden">
-                          <img 
-                            src={template.preview} 
-                            alt={template.name}
-                            className="w-full h-full object-cover"
+                        {/* Template Preview HTML */}
+                        <div className="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg overflow-hidden border-b relative">
+                          <iframe
+                            srcDoc={template.htmlContent}
+                            className="w-full h-full border-0 transform scale-50 origin-top-left pointer-events-none"
+                            style={{ width: '200%', height: '200%' }}
+                            title={`${template.name} Preview`}
+                            sandbox="allow-same-origin"
+                            scrolling="no"
                           />
+                          <div className="absolute inset-0 bg-transparent hover:bg-black/5 transition-colors cursor-pointer" />
                         </div>
                         
                         {/* Template Info */}
@@ -3714,13 +3720,62 @@ Return ONLY the subject line without quotes or additional text.`;
                         </TabsList>
                         
                         <TabsContent value="preview" className="space-y-4 mt-6">
+                          {/* Viewport Controls */}
+                          <div className="flex items-center justify-between bg-white/30 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-700">Preview Size:</span>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant={previewViewport === 'desktop' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setPreviewViewport('desktop')}
+                                  className="text-xs flex items-center gap-1"
+                                >
+                                  <Monitor className="h-3 w-3" />
+                                  Desktop
+                                </Button>
+                                <Button
+                                  variant={previewViewport === 'mobile' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setPreviewViewport('mobile')}
+                                  className="text-xs flex items-center gap-1"
+                                >
+                                  <Smartphone className="h-3 w-3" />
+                                  Mobile
+                                </Button>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsFullscreenPreview(true)}
+                              className="flex items-center gap-1 text-xs bg-white/50 hover:bg-white/70"
+                            >
+                              <Maximize2 className="h-3 w-3" />
+                              Fullscreen
+                            </Button>
+                          </div>
+
                           <div className="border border-white/30 rounded-xl bg-white/20 backdrop-blur-sm p-4">
-                            <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
+                            <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full mx-auto" 
+                                 style={{ maxWidth: previewViewport === 'mobile' ? '375px' : '100%' }}>
+                              <div className="bg-gray-100 px-4 py-2 border-b flex items-center gap-2">
+                                <div className="flex gap-1">
+                                  <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                                  <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                                  <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                                </div>
+                                <span className="text-xs text-gray-600 ml-2">
+                                  Email Preview {previewViewport === 'mobile' ? '(Mobile)' : '(Desktop)'}
+                                </span>
+                              </div>
                               <iframe
                                 srcDoc={selectedTemplate.htmlContent}
-                                className="w-full h-[500px] border-0 rounded-lg"
+                                className="w-full border-0"
+                                style={{ height: previewViewport === 'mobile' ? '500px' : '600px' }}
                                 title="Email Template Preview"
                                 sandbox="allow-same-origin"
+                                scrolling="auto"
                               />
                             </div>
                           </div>
@@ -3849,6 +3904,76 @@ Return ONLY the subject line without quotes or additional text.`;
                           </div>
                         </TabsContent>
                       </Tabs>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fullscreen Preview Modal */}
+              {isFullscreenPreview && selectedTemplate && (
+                <div className="fixed inset-0 bg-black z-[60] flex flex-col">
+                  {/* Fullscreen Header */}
+                  <div className="bg-gray-900 text-white p-4 flex items-center justify-between border-b border-gray-700">
+                    <div>
+                      <h3 className="text-lg font-semibold">{selectedTemplate.name} - Fullscreen Preview</h3>
+                      <p className="text-sm text-gray-300">{selectedTemplate.category}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <Button
+                          variant={previewViewport === 'desktop' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPreviewViewport('desktop')}
+                          className="text-xs flex items-center gap-1"
+                        >
+                          <Monitor className="h-3 w-3" />
+                          Desktop
+                        </Button>
+                        <Button
+                          variant={previewViewport === 'mobile' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPreviewViewport('mobile')}
+                          className="text-xs flex items-center gap-1"
+                        >
+                          <Smartphone className="h-3 w-3" />
+                          Mobile
+                        </Button>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsFullscreenPreview(false)}
+                        className="text-white hover:bg-gray-800"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Fullscreen Content */}
+                  <div className="flex-1 bg-gray-100 p-4 overflow-auto">
+                    <div className="h-full flex items-center justify-center">
+                      <div className="bg-white rounded-lg shadow-2xl overflow-hidden mx-auto" 
+                           style={{ maxWidth: previewViewport === 'mobile' ? '375px' : '800px', width: '100%' }}>
+                        <div className="bg-gray-200 px-4 py-2 border-b flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                            <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                          </div>
+                          <span className="text-xs text-gray-600 ml-2">
+                            {selectedTemplate.name} - {previewViewport === 'mobile' ? 'Mobile' : 'Desktop'} View
+                          </span>
+                        </div>
+                        <iframe
+                          srcDoc={selectedTemplate.htmlContent}
+                          className="w-full border-0"
+                          style={{ height: 'calc(100vh - 120px)' }}
+                          title="Fullscreen Email Template Preview"
+                          sandbox="allow-same-origin"
+                          scrolling="auto"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3998,42 +4123,6 @@ Return ONLY the subject line without quotes or additional text.`;
           </CardContent>
         </Card>
       )}
-
-          {/* API Debug Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>API Debug Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <span className="font-medium">Account ID:</span> 
-                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
-                </div>
-                <div>
-                  <span className="font-medium">Companies Endpoint:</span> 
-                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
-                    GET {API_CONFIG.BASE_URL}/accounts/{accountId}/companies-with-banners
-                  </code>
-                </div>
-                <div>
-                  <span className="font-medium">Total Companies:</span> 
-                  <span className="ml-1">{companies.length}</span>
-                </div>
-                <div>
-                  <span className="font-medium">Total Banners:</span> 
-                  <span className="ml-1">{companies.reduce((total, company) => total + company.banners.length, 0)}</span>
-                </div>
-                <div>
-                  <span className="font-medium">cURL Command:</span>
-                  <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X GET "${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners" \\
-  -H "Content-Type: application/json"`}
-                  </pre>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </>
       )}
     </div>
