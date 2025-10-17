@@ -151,6 +151,9 @@ export default function GetLeads() {
   const [showResultsTable, setShowResultsTable] = useState(false);
   const [selectedQueryForResults, setSelectedQueryForResults] = useState<SearchQuery | null>(null);
   
+  // Company view section state
+  const [activeSection, setActiveSection] = useState<'company' | 'leads'>('company');
+  
   // Session variables for the current company context
   const [sessionVars, setSessionVars] = useState<{
     account_id: string;
@@ -354,6 +357,7 @@ export default function GetLeads() {
     setQueries([]);
     setSearchResults({});
     setVisibleResults(new Set());
+    setActiveSection('company'); // Reset to company section
     // Clear session variables and enrichment progress when going back
     setSessionVars(null);
     setEnrichmentProgress({});
@@ -965,106 +969,141 @@ export default function GetLeads() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setShowQueryForm(true)} className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Create Search Query
-          </Button>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Company Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Company Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <span className="font-medium">Name:</span> {selectedCompany.name}
-              </div>
-              {selectedCompany.domain && (
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Domain:</span>
-                  <a 
-                    href={`https://${selectedCompany.domain}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline flex items-center gap-1"
-                  >
-                    {selectedCompany.domain}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-              )}
-              <div>
-                <span className="font-medium">Status:</span>
-                <Badge variant={selectedCompany.is_active ? "default" : "secondary"} className="ml-2">
-                  {selectedCompany.is_active ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-              <div>
-                <span className="font-medium">Created:</span> {new Date(selectedCompany.created_at).toLocaleString()}
-              </div>
-              <div>
-                <span className="font-medium">Updated:</span> {new Date(selectedCompany.updated_at).toLocaleString()}
-              </div>
-              {selectedCompany.notes && (
+        {/* Section Navigation */}
+        <div className="flex items-center gap-4 border-b">
+          <button
+            onClick={() => setActiveSection('company')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeSection === 'company'
+                ? 'border-primary text-primary bg-primary/5'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <Building2 className="h-4 w-4 mr-2 inline" />
+            Company Information
+          </button>
+          <button
+            onClick={() => setActiveSection('leads')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeSection === 'leads'
+                ? 'border-primary text-primary bg-primary/5'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <Search className="h-4 w-4 mr-2 inline" />
+            Get Leads
+          </button>
+        </div>
+
+        {/* Company Information Section */}
+        {activeSection === 'company' && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Company Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Company Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <span className="font-medium">Notes:</span>
-                  <p className="mt-1 text-sm text-muted-foreground">{selectedCompany.notes}</p>
+                  <span className="font-medium">Name:</span> {selectedCompany.name}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                {selectedCompany.domain && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Domain:</span>
+                    <a 
+                      href={`https://${selectedCompany.domain}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1"
+                    >
+                      {selectedCompany.domain}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Status:</span>
+                  <Badge variant={selectedCompany.is_active ? "default" : "secondary"} className="ml-2">
+                    {selectedCompany.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="font-medium">Created:</span> {new Date(selectedCompany.created_at).toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-medium">Updated:</span> {new Date(selectedCompany.updated_at).toLocaleString()}
+                </div>
+                {selectedCompany.notes && (
+                  <div>
+                    <span className="font-medium">Notes:</span>
+                    <p className="mt-1 text-sm text-muted-foreground">{selectedCompany.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Company Banners */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Banners ({selectedCompany.banners.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {selectedCompany.banners.length > 0 ? (
-                <div className="space-y-4">
-                  {selectedCompany.banners.map((banner) => (
-                    <div key={banner.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                          <h4 className="font-medium">{banner.name}</h4>
-                          {banner.logo_url && (
-                            <img 
-                              src={banner.logo_url} 
-                              alt={`${banner.name} logo`}
-                              className="h-8 w-auto"
-                            />
-                          )}
-                          {banner.signature && (
-                            <p className="text-sm text-muted-foreground">{banner.signature}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Created: {new Date(banner.created_at).toLocaleString()}
-                          </p>
+            {/* Company Banners */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Banners ({selectedCompany.banners.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedCompany.banners.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedCompany.banners.map((banner) => (
+                      <div key={banner.id} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2">
+                            <h4 className="font-medium">{banner.name}</h4>
+                            {banner.logo_url && (
+                              <img 
+                                src={banner.logo_url} 
+                                alt={`${banner.name} logo`}
+                                className="h-8 w-auto"
+                              />
+                            )}
+                            {banner.signature && (
+                              <p className="text-sm text-muted-foreground">{banner.signature}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Created: {new Date(banner.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <Badge variant={banner.is_active ? "default" : "secondary"}>
+                            {banner.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
-                        <Badge variant={banner.is_active ? "default" : "secondary"}>
-                          {banner.is_active ? "Active" : "Inactive"}
-                        </Badge>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No banners found for this company.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No banners found for this company.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {/* Search Query Form */}
-        {showQueryForm && (
+        {/* Get Leads Section */}
+        {activeSection === 'leads' && (
+          <div className="space-y-6">
+            <div className="flex justify-end">
+              <Button onClick={() => setShowQueryForm(true)} className="flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Create Search Query
+              </Button>
+            </div>
+
+            {/* Search Query Form */}
+            {showQueryForm && (
           <Card>
             <CardHeader>
               <CardTitle>Create Search Query</CardTitle>
@@ -1623,7 +1662,8 @@ export default function GetLeads() {
             </CardContent>
           </Card>
         )}
-
+          </div>
+        )}
 
       </div>
     );

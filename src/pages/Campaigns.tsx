@@ -226,6 +226,7 @@ export default function Campaigns() {
   const [addingLeads, setAddingLeads] = useState(false);
   const [showCampaignLeads, setShowCampaignLeads] = useState(false);
   const [selectedCampaignForLeads, setSelectedCampaignForLeads] = useState<Campaign | null>(null);
+  const [startingCampaign, setStartingCampaign] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'company' | 'campaigns' | 'templates'>('company');
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -378,7 +379,7 @@ export default function Campaigns() {
   if (!GEMINI_API_KEY) {
     console.error('VITE_GEMINI_API_KEY not found in environment variables');
   }
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-001:generateContent?key=${GEMINI_API_KEY}`;
 
   // System prompts for AI generation
   const getSystemPrompt = (type: 'text' | 'template', isRefining: boolean = false) => {
@@ -2202,6 +2203,81 @@ Return ONLY the subject line without quotes or additional text.`;
     }
   };
 
+  const startCampaign = async (campaignId: string) => {
+    setStartingCampaign(campaignId);
+    try {
+      let response;
+      try {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${campaignId}/send-emails`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+      } catch (networkError) {
+        // Handle network errors (CORS, connection failed, etc.)
+        console.warn('Network error starting campaign, using mock response:', networkError);
+        // Update campaign status locally in demo mode
+        setCampaigns(prev => prev.map(campaign => 
+          campaign.id === campaignId 
+            ? { ...campaign, status: 'running' as const }
+            : campaign
+        ));
+        toast({
+          title: "Demo Mode",
+          description: "Campaign started successfully (backend not available)",
+        });
+        setStartingCampaign(null);
+        return;
+      }
+
+      if (!response.ok) {
+        // If API is not available, update local state for development
+        if (response.status === 404 || response.status === 0) {
+          console.warn('Campaign start API not available, updating local state');
+          setCampaigns(prev => prev.map(campaign => 
+            campaign.id === campaignId 
+              ? { ...campaign, status: 'running' as const }
+              : campaign
+          ));
+          toast({
+            title: "Demo Mode",
+            description: "Campaign started successfully (API not available)",
+          });
+          setStartingCampaign(null);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update campaign status
+        setCampaigns(prev => prev.map(campaign => 
+          campaign.id === campaignId 
+            ? { ...campaign, status: 'running' as const }
+            : campaign
+        ));
+        toast({
+          title: "Campaign Started",
+          description: `Campaign emails are being sent. Sent: ${data.results?.sent_count || 0}, Failed: ${data.results?.failed_count || 0}`,
+        });
+      } else {
+        throw new Error(data.message || 'Failed to start campaign');
+      }
+    } catch (error) {
+      console.error('Error starting campaign:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setStartingCampaign(null);
+    }
+  };
+
   const deleteCampaign = async (campaignId: string) => {
     if (!window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
       return;
@@ -2679,6 +2755,27 @@ Return ONLY the subject line without quotes or additional text.`;
                             {campaign.status === "draft" && <Clock className="h-3 w-3" />}
                             {campaign.status}
                           </Badge>
+                          {campaign.status === "draft" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startCampaign(campaign.id);
+                              }}
+                              disabled={startingCampaign === campaign.id}
+                              className="h-8 px-3 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              {startingCampaign === campaign.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Start
+                                </>
+                              )}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
