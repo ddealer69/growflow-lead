@@ -20,6 +20,13 @@ export default function Auth() {
   const [enteredOtp, setEnteredOtp] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
+  
+  // Separate OTP states for sign-in
+  const [signinOtpSent, setSigninOtpSent] = useState(false);
+  const [signinOtpVerified, setSigninOtpVerified] = useState(false);
+  const [signinEnteredOtp, setSigninEnteredOtp] = useState("");
+  const [signinGeneratedOtp, setSigninGeneratedOtp] = useState("");
+  const [signinOtpLoading, setSigninOtpLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
 
@@ -72,6 +79,50 @@ export default function Auth() {
     }
   };
 
+  // Sign-in OTP functions
+  const sendSigninOtp = async () => {
+    if (!email) {
+      toast.error("Please enter your email first");
+      return;
+    }
+
+    setSigninOtpLoading(true);
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSigninGeneratedOtp(data.otp.toString());
+        setSigninOtpSent(true);
+        toast.success("OTP sent to your email successfully!");
+      } else {
+        toast.error(data.message || "Failed to send OTP. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      if (error instanceof Error && error.message.includes('404')) {
+        toast.error("OTP service is not available. Please contact support.");
+      } else if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        toast.error("Network error. Please check your connection and try again.");
+      } else {
+        toast.error("Failed to send OTP. Please try again.");
+      }
+    } finally {
+      setSigninOtpLoading(false);
+    }
+  };
+
   const verifyOtp = () => {
     if (!enteredOtp) {
       toast.error("Please enter the OTP");
@@ -91,6 +142,25 @@ export default function Auth() {
     }
   };
 
+  const verifySigninOtp = () => {
+    if (!signinEnteredOtp) {
+      toast.error("Please enter the OTP");
+      return;
+    }
+
+    if (signinEnteredOtp === signinGeneratedOtp) {
+      setSigninOtpVerified(true);
+      toast.success("Email verified successfully!");
+    } else {
+      toast.error("Invalid OTP. Please check your email and try again.", {
+        action: {
+          label: "Resend OTP",
+          onClick: sendSigninOtp,
+        },
+      });
+    }
+  };
+
   const resetOtpState = () => {
     setOtpSent(false);
     setOtpVerified(false);
@@ -98,10 +168,22 @@ export default function Auth() {
     setGeneratedOtp("");
   };
 
+  const resetSigninOtpState = () => {
+    setSigninOtpSent(false);
+    setSigninOtpVerified(false);
+    setSigninEnteredOtp("");
+    setSigninGeneratedOtp("");
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error("Please fill in all fields");
+      return;
+    }
+
+    if (!signinOtpVerified) {
+      toast.error("Please verify your email first");
       return;
     }
     
@@ -148,6 +230,7 @@ export default function Auth() {
       setFullName("");
       setAccountName("");
       resetOtpState();
+      resetSigninOtpState();
       // Switch to signin tab programmatically
       const signinTab = document.querySelector('[value="signin"]') as HTMLElement;
       if (signinTab) {
@@ -174,15 +257,65 @@ export default function Auth() {
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="signin-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        // Reset OTP state when email changes
+                        if (signinOtpSent || signinOtpVerified) {
+                          resetSigninOtpState();
+                        }
+                      }}
+                      required
+                      className={signinOtpVerified ? "border-green-500" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={sendSigninOtp}
+                      disabled={!email || signinOtpLoading || signinOtpVerified}
+                      className="whitespace-nowrap"
+                    >
+                      {signinOtpLoading ? "Sending..." : signinOtpVerified ? "Verified" : "Verify Email"}
+                    </Button>
+                  </div>
+                  {signinOtpVerified && (
+                    <p className="text-xs text-green-600">✓ Email verified successfully</p>
+                  )}
                 </div>
+                
+                {/* OTP Input - only show after OTP is sent */}
+                {signinOtpSent && !signinOtpVerified && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-otp-input">Enter OTP</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="signin-otp-input"
+                        type="text"
+                        placeholder="6-digit OTP"
+                        value={signinEnteredOtp}
+                        onChange={(e) => setSigninEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={verifySigninOtp}
+                        disabled={signinEnteredOtp.length !== 6}
+                      >
+                        Verify
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Check your email for the 6-digit verification code
+                    </p>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
                   <Input
@@ -193,9 +326,14 @@ export default function Auth() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || !signinOtpVerified}>
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
+                {!signinOtpVerified && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Please verify your email before signing in
+                  </p>
+                )}
               </form>
             </TabsContent>
             
