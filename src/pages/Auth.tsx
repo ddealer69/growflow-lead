@@ -160,8 +160,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">LeadFlow</CardTitle>
-          <CardDescription>Multi-tenant Lead Management System</CardDescription>
+          <CardTitle className="text-2xl font-bold">AI4SCALE</CardTitle>
+          <CardDescription>Transform Strangers Into Customers on Autopilot</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
