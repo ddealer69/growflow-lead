@@ -670,7 +670,7 @@ Return ONLY the subject line without quotes or additional text.`;
       name: 'Professional Welcome',
       description: 'Clean professional template with company branding',
       category: 'Welcome',
-      preview: 'https://via.placeholder.com/300x200/03254C/ffffff?text=Professional+Welcome',
+      preview: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzAzMjU0QyIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Qcm9mZXNzaW9uYWwgV2VsY29tZTwvdGV4dD4KICA8cmVjdCB4PSIyMCIgeT0iMjAiIHdpZHRoPSIyNjAiIGhlaWdodD0iNDAiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuMSIvPgogIDxyZWN0IHg9IjIwIiB5PSIxNDAiIHdpZHRoPSIyNjAiIGhlaWdodD0iNDAiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4K',
       htmlContent: demoHtmlTemplate
     },
     {
@@ -678,7 +678,7 @@ Return ONLY the subject line without quotes or additional text.`;
       name: 'Monochromatic Gray',
       description: 'Clean monochromatic design with professional gray styling',
       category: 'Newsletter',
-      preview: 'https://via.placeholder.com/300x200/111111/ffffff?text=Monochromatic+Gray',
+      preview: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzExMTExMSIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Nb25vY2hyb21hdGljIEdyYXk8L3RleHQ+CiAgPHJlY3QgeD0iMjAiIHk9IjMwIiB3aWR0aD0iMjYwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjMiLz4KICA8cmVjdCB4PSIyMCIgeT0iNjAiIHdpZHRoPSIxODAiIGhlaWdodD0iMTAiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuMiIvPgogIDxyZWN0IHg9IjIwIiB5PSI4MCIgd2lkdGg9IjIyMCIgaGVpZ2h0PSIxMCIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC4yIi8+Cjwvc3ZnPgo=',
       htmlContent: `<!doctype html>
 <html lang="en">
 <head>
@@ -782,7 +782,7 @@ Return ONLY the subject line without quotes or additional text.`;
       name: 'Tech Newsletter',
       description: 'Modern tech-focused design with dark accents',
       category: 'General',
-      preview: 'https://via.placeholder.com/300x200/0f1419/10b981?text=Tech+Newsletter',
+      preview: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzBmMTQxOSIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiMxMGI5ODEiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlRlY2ggTmV3c2xldHRlcjwvdGV4dD4KICA8cmVjdCB4PSIyMCIgeT0iMzAiIHdpZHRoPSIyNjAiIGhlaWdodD0iMTUiIGZpbGw9IiMxMGI5ODEiIG9wYWNpdHk9IjAuMyIvPgogIDxyZWN0IHg9IjIwIiB5PSI1NSIgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxMCIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC4yIi8+CiAgPHJlY3QgeD0iMjAiIHk9IjE0MCIgd2lkdGg9IjEyMCIgaGVpZ2h0PSIyMCIgZmlsbD0iIzEwYjk4MSIgb3BhY2l0eT0iMC41Ii8+Cjwvc3ZnPgo=',
       htmlContent: `<!doctype html>
 <html lang="en">
 <head>
@@ -887,7 +887,7 @@ Return ONLY the subject line without quotes or additional text.`;
       name: 'Product Launch',
       description: 'Vibrant template for product announcements and launches',
       category: 'Marketing',
-      preview: 'https://via.placeholder.com/300x200/ec3840/ffffff?text=Product+Launch',
+      preview: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VjMzg0MCIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXdlaWdodD0iYm9sZCI+UHJvZHVjdCBMYXVuY2g8L3RleHQ+CiAgPHJlY3QgeD0iNDAiIHk9IjQwIiB3aWR0aD0iMjIwIiBoZWlnaHQ9IjMwIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjMiIHJ4PSI1Ii8+CiAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iNTAiIHI9IjE1IiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjQiLz4KICA8cmVjdCB4PSI0MCIgeT0iMTMwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjciIHJ4PSIxMCIvPgo8L3N2Zz4K',
       htmlContent: `<!doctype html>
 <html lang="en">
 <head>
@@ -979,7 +979,7 @@ Return ONLY the subject line without quotes or additional text.`;
       name: 'Executive Brief',
       description: 'Sophisticated template for executive communications',
       category: 'Business',
-      preview: 'https://via.placeholder.com/300x200/1f2937/f9fafb?text=Executive+Brief',
+      preview: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzFmMjkzNyIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmOWZhZmIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkV4ZWN1dGl2ZSBCcmllZjwvdGV4dD4KICA8cmVjdCB4PSIyMCIgeT0iMzAiIHdpZHRoPSIyNjAiIGhlaWdodD0iMTUiIGZpbGw9IiNmOWZhZmIiIG9wYWNpdHk9IjAuNyIvPgogIDxyZWN0IHg9IjIwIiB5PSI1NSIgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxMCIgZmlsbD0iI2Y5ZmFmYiIgb3BhY2l0eT0iMC40Ii8+CiAgPHJlY3QgeD0iMjAiIHk9IjE0MCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIyMCIgZmlsbD0iI2Y5ZmFmYiIgb3BhY2l0eT0iMC42IiByeD0iNSIvPgo8L3N2Zz4K',
       htmlContent: `<!doctype html>
 <html lang="en">
 <head>
@@ -4223,12 +4223,12 @@ Return ONLY the subject line without quotes or additional text.`;
           {/* Content */}
           <div className="relative pr-8">
             <DialogHeader className="space-y-3">
-              <DialogTitle className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white drop-shadow-sm">
                 Import Leads for {selectedCampaignForImport?.name}
               </DialogTitle>
-              <DialogDescription className="text-gray-600 dark:text-gray-300">
-                Upload a <strong>CSV</strong> or <strong>JSON</strong> file.<br />
-                Required fields: <code className="bg-black/10 px-1 py-0.5 rounded text-xs">full_name</code>, <code className="bg-black/10 px-1 py-0.5 rounded text-xs">email</code>, <code className="bg-black/10 px-1 py-0.5 rounded text-xs">location</code>.
+              <DialogDescription className="text-gray-800 dark:text-gray-200 font-medium">
+                Upload a <strong className="text-gray-900 dark:text-white">CSV</strong> or <strong className="text-gray-900 dark:text-white">JSON</strong> file.<br />
+                Required fields: <code className="bg-gray-900/20 text-gray-900 dark:bg-white/20 dark:text-white px-2 py-1 rounded text-sm font-mono font-semibold">full_name</code>, <code className="bg-gray-900/20 text-gray-900 dark:bg-white/20 dark:text-white px-2 py-1 rounded text-sm font-mono font-semibold">email</code>, <code className="bg-gray-900/20 text-gray-900 dark:bg-white/20 dark:text-white px-2 py-1 rounded text-sm font-mono font-semibold">location</code>.
               </DialogDescription>
             </DialogHeader>
 
@@ -4239,24 +4239,24 @@ Return ONLY the subject line without quotes or additional text.`;
                   type="file"
                   accept=".csv,.json"
                   onChange={handleFileChange}
-                  className="w-full bg-white/10 border border-white/30 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 backdrop-blur-sm"
+                  className="w-full bg-white/20 border-2 border-gray-300/50 text-gray-900 dark:text-white placeholder-gray-700 dark:placeholder-gray-300 backdrop-blur-sm font-medium file:bg-gray-900/10 file:text-gray-900 dark:file:bg-white/10 dark:file:text-white file:border-0 file:rounded file:px-3 file:py-1 file:mr-3"
                 />
               </div>
 
               {/* Preview */}
               {importPreview.length > 0 && (
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Preview (First 5 leads):</h4>
+                <div className="bg-white/20 backdrop-blur-sm rounded-lg border-2 border-gray-300/30 p-4">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 drop-shadow-sm">Preview (First 5 leads):</h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {importPreview.map((lead, index) => (
-                      <div key={index} className="text-xs bg-white/10 rounded p-2 border border-white/10">
-                        <div className="font-medium text-gray-900 dark:text-white">{lead.data.name}</div>
-                        <div className="text-gray-600 dark:text-gray-400">{lead.email}</div>
+                      <div key={index} className="text-sm bg-white/30 rounded p-3 border border-gray-300/20 shadow-sm">
+                        <div className="font-bold text-gray-900 dark:text-white">{lead.data.name}</div>
+                        <div className="text-gray-800 dark:text-gray-200 font-medium">{lead.email}</div>
                         {lead.data.location && (
-                          <div className="text-gray-500 dark:text-gray-500">{lead.data.location}</div>
+                          <div className="text-gray-700 dark:text-gray-300 font-medium">{lead.data.location}</div>
                         )}
                         {lead.data.company && (
-                          <div className="text-gray-500 dark:text-gray-500">{lead.data.company}</div>
+                          <div className="text-gray-700 dark:text-gray-300 font-medium">{lead.data.company}</div>
                         )}
                       </div>
                     ))}
@@ -4266,12 +4266,12 @@ Return ONLY the subject line without quotes or additional text.`;
 
               {/* File Info */}
               {importFile && (
-                <div className="bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-500/20 p-3">
-                  <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                <div className="bg-blue-600/20 backdrop-blur-sm rounded-lg border-2 border-blue-500/30 p-3">
+                  <div className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
                     <Upload className="h-4 w-4" />
-                    <span className="text-sm font-medium">File ready: {importFile.name}</span>
+                    <span className="text-sm font-bold">File ready: {importFile.name}</span>
                   </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  <p className="text-xs text-blue-800 dark:text-blue-200 mt-1 font-medium">
                     This will send emails using the campaign's templates to all valid leads.
                   </p>
                 </div>
@@ -4288,14 +4288,14 @@ Return ONLY the subject line without quotes or additional text.`;
                   setImportPreview([]);
                   setSelectedCampaignForImport(null);
                 }}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/10"
+                className="text-gray-800 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-white/20 bg-white/10 border border-gray-300/30 font-semibold"
               >
                 Cancel
               </Button>
               <Button 
                 onClick={uploadAndSendLeads}
                 disabled={!importFile || importPreview.length === 0 || importingLeads}
-                className="bg-white/20 hover:bg-white/30 text-gray-900 dark:text-white border border-white/30 backdrop-blur-sm"
+                className="bg-blue-600/80 hover:bg-blue-600/90 text-white border-2 border-blue-500/50 backdrop-blur-sm font-bold shadow-lg disabled:bg-gray-500/50 disabled:text-gray-300"
               >
                 {importingLeads ? (
                   <>
