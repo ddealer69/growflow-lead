@@ -9,11 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2, X, Sparkles, FileText, Edit, Copy, Monitor, Smartphone, Maximize2, Upload, UserPlus } from "lucide-react";
+import { Building2, Globe, Calendar, Users, ExternalLink, Loader2, Mail, Send, ArrowLeft, Code, Eye, Plus, Play, Pause, Clock, Search, Trash2, X, Sparkles, FileText, Edit, Copy, Upload, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Banner {
   id: string;
@@ -227,19 +227,10 @@ export default function Campaigns() {
   const [addingLeads, setAddingLeads] = useState(false);
   const [showCampaignLeads, setShowCampaignLeads] = useState(false);
   const [selectedCampaignForLeads, setSelectedCampaignForLeads] = useState<Campaign | null>(null);
-  const [startingCampaign, setStartingCampaign] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'company' | 'campaigns' | 'templates'>('company');
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [selectedFormTemplate, setSelectedFormTemplate] = useState<string>("");
-  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
-  const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importingLeads, setImportingLeads] = useState(false);
-  const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [showAddLeadsDialog, setShowAddLeadsDialog] = useState(false);
-  const [selectedCampaignToAddLeads, setSelectedCampaignToAddLeads] = useState<Campaign | null>(null);
   const [campaignForm, setCampaignForm] = useState<CreateCampaignForm>({
     name: "",
     subject_template: "",
@@ -251,6 +242,13 @@ export default function Campaigns() {
     max_retries: 3,
     scheduled_at: ""
   });
+
+  // Import Leads Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedCampaignForImport, setSelectedCampaignForImport] = useState<Campaign | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importingLeads, setImportingLeads] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
 
   // Demo HTML template for email campaigns
   const demoHtmlTemplate = `<!doctype html>
@@ -388,7 +386,7 @@ export default function Campaigns() {
   if (!GEMINI_API_KEY) {
     console.error('VITE_GEMINI_API_KEY not found in environment variables');
   }
-  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-001:generateContent?key=${GEMINI_API_KEY}`;
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
   // System prompts for AI generation
   const getSystemPrompt = (type: 'text' | 'template', isRefining: boolean = false) => {
@@ -1107,57 +1105,157 @@ Return ONLY the subject line without quotes or additional text.`;
     return isTemplateModified && customHtmlTemplate ? customHtmlTemplate : demoHtmlTemplate;
   };
 
-  // Import leads from file
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Import Leads Functions
+  const openImportModal = (campaign: Campaign) => {
+    setSelectedCampaignForImport(campaign);
+    setShowImportModal(true);
+    setImportFile(null);
+    setImportPreview([]);
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const validTypes = ['text/csv', 'application/json', '.csv', '.json'];
-    const fileExtension = file.name.toLowerCase().split('.').pop();
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
     
     if (!validTypes.includes(file.type) && !['csv', 'json'].includes(fileExtension || '')) {
       toast({
-        title: "Invalid File Type",
-        description: "Please upload a CSV or JSON file",
+        title: "Invalid file type",
+        description: "Please select a CSV or JSON file",
         variant: "destructive",
       });
       return;
     }
 
     setImportFile(file);
-    
-    // Parse file for preview
+    previewFile(file);
+  };
+
+  const previewFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
+      let parsedData: any[] = [];
+
       try {
-        let parsedData: any[] = [];
-        
-        if (file.type === 'application/json' || fileExtension === 'json') {
-          const jsonData = JSON.parse(content);
-          parsedData = Array.isArray(jsonData) ? jsonData : [jsonData];
-        } else {
-          // Parse CSV - expecting columns: Fullname, email, id, position
+        if (file.name.endsWith('.json')) {
+          parsedData = JSON.parse(content);
+          if (!Array.isArray(parsedData)) {
+            throw new Error('JSON file must contain an array of objects');
+          }
+        } else if (file.name.endsWith('.csv')) {
+          // Simple CSV parser
           const lines = content.split('\n').filter(line => line.trim());
-          if (lines.length > 0) {
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-            
-            // Validate required columns
-            const requiredColumns = ['Fullname', 'email', 'id', 'position'];
-            const missingColumns = requiredColumns.filter(col => 
-              !headers.some(header => header.toLowerCase() === col.toLowerCase())
-            );
-            
-            if (missingColumns.length > 0) {
-              toast({
-                title: "Invalid CSV Format",
-                description: `Missing required columns: ${missingColumns.join(', ')}. Expected: Fullname, email, id, position`,
-                variant: "destructive",
-              });
-              setImportFile(null);
-              return;
+          if (lines.length < 2) {
+            throw new Error('CSV file must have at least a header and one data row');
+          }
+          
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          parsedData = lines.slice(1).map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+            const obj: any = {};
+            headers.forEach((header, index) => {
+              obj[header] = values[index] || '';
+            });
+            return obj;
+          });
+        }
+
+        // Validate required fields and transform data
+        const validLeads = parsedData
+          .map((item, index) => {
+            const email = item.email || item.Email || '';
+            const fullName = item.full_name || item.name || item.Name || item.full_name || '';
+            const location = item.location || item.Location || '';
+
+            if (!email || !fullName) {
+              console.warn(`Row ${index + 1}: Missing required fields (email or full_name)`);
+              return null;
             }
-            
+
+            return {
+              email,
+              data: {
+                name: fullName,
+                location: location || null,
+                company: item.company || item.Company || null,
+                role: item.role || item.Role || item.title || item.Title || null,
+                ...item // Include any additional fields
+              }
+            };
+          })
+          .filter(Boolean);
+
+        setImportPreview(validLeads.slice(0, 5)); // Show first 5 for preview
+        
+        if (validLeads.length === 0) {
+          toast({
+            title: "No valid leads found",
+            description: "Please ensure your file has the required fields: full_name/name and email",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "File parsed successfully",
+            description: `Found ${validLeads.length} valid leads`,
+          });
+        }
+
+      } catch (error) {
+        console.error('Error parsing file:', error);
+        toast({
+          title: "File parsing failed",
+          description: error instanceof Error ? error.message : "Unable to parse the file",
+          variant: "destructive",
+        });
+        setImportPreview([]);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const uploadAndSendLeads = async () => {
+    if (!importFile || !selectedCampaignForImport) {
+      toast({
+        title: "Error",
+        description: "Please select a file and campaign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImportingLeads(true);
+
+    try {
+      // First, fetch the campaign details to get templates
+      const campaignResponse = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${selectedCampaignForImport.id}`);
+      
+      if (!campaignResponse.ok) {
+        throw new Error('Failed to fetch campaign details');
+      }
+
+      const campaignData = await campaignResponse.json();
+      
+      if (!campaignData.success) {
+        throw new Error(campaignData.message || 'Failed to get campaign details');
+      }
+
+      const campaign = campaignData.campaign;
+
+      // Parse the file completely
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+        let parsedData: any[] = [];
+
+        try {
+          if (importFile.name.endsWith('.json')) {
+            parsedData = JSON.parse(content);
+          } else if (importFile.name.endsWith('.csv')) {
+            const lines = content.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
             parsedData = lines.slice(1).map(line => {
               const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
               const obj: any = {};
@@ -1167,159 +1265,84 @@ Return ONLY the subject line without quotes or additional text.`;
               return obj;
             });
           }
-        }
-        
-        // Validate JSON format has required fields
-        if (file.type === 'application/json' || fileExtension === 'json') {
-          const requiredFields = ['Fullname', 'email', 'id', 'position'];
-          const firstRecord = parsedData[0];
-          if (firstRecord) {
-            const missingFields = requiredFields.filter(field => 
-              !Object.keys(firstRecord).some(key => key.toLowerCase() === field.toLowerCase())
-            );
-            
-            if (missingFields.length > 0) {
-              toast({
-                title: "Invalid JSON Format",
-                description: `Missing required fields: ${missingFields.join(', ')}. Expected: Fullname, email, id, position`,
-                variant: "destructive",
-              });
-              setImportFile(null);
-              return;
-            }
-          }
-        }
-        
-        setImportPreview(parsedData.slice(0, 5)); // Show first 5 for preview
-      } catch (error) {
-        toast({
-          title: "File Parse Error",
-          description: "Failed to parse the file. Please check the format.",
-          variant: "destructive",
-        });
-        setImportFile(null);
-        setImportPreview([]);
-      }
-    };
-    
-    reader.readAsText(file);
-  };
 
-  const processImportedLeads = async () => {
-    if (!importFile || !selectedCompany || !user?.id || !accountId) {
-      toast({
-        title: "Error",
-        description: "Missing required information for import",
-        variant: "destructive",
-      });
-      return;
-    }
+          // Transform data for API
+          const recipients = parsedData
+            .map(item => {
+              const email = item.email || item.Email || '';
+              const fullName = item.full_name || item.name || item.Name || '';
+              const location = item.location || item.Location || '';
 
-    setImportingLeads(true);
-    
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const content = e.target?.result as string;
-        let leadsData: any[] = [];
-        
-        try {
-          const fileExtension = importFile.name.toLowerCase().split('.').pop();
-          
-          if (importFile.type === 'application/json' || fileExtension === 'json') {
-            const jsonData = JSON.parse(content);
-            leadsData = Array.isArray(jsonData) ? jsonData : [jsonData];
-          } else {
-            // Parse CSV - expecting columns: Fullname, email, id, position
-            const lines = content.split('\n').filter(line => line.trim());
-            if (lines.length > 0) {
-              const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-              leadsData = lines.slice(1).map(line => {
-                const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-                const obj: any = {};
-                headers.forEach((header, index) => {
-                  obj[header] = values[index] || '';
-                });
-                return obj;
-              });
-            }
-          }
+              if (!email || !fullName) return null;
 
-          // Process each lead
-          const successfulImports: Lead[] = [];
-          
-          for (const leadData of leadsData) {
-            try {
-              // Map the imported data to our Lead structure
-              // Expected columns: Fullname, email, id, position
-              const getFieldValue = (data: any, fieldName: string) => {
-                // Try exact match first, then case-insensitive
-                if (data[fieldName]) return data[fieldName];
-                const key = Object.keys(data).find(k => k.toLowerCase() === fieldName.toLowerCase());
-                return key ? data[key] : '';
+              return {
+                email,
+                data: {
+                  name: fullName,
+                  location: location || null,
+                  company: item.company || item.Company || null,
+                  role: item.role || item.Role || item.title || item.Title || null
+                }
               };
+            })
+            .filter(Boolean);
 
-              const newLead = {
-                company_id: selectedCompany.id,
-                full_name: getFieldValue(leadData, 'Fullname') || 'Unknown',
-                title: getFieldValue(leadData, 'position') || '',
-                location: '', // Not in the required columns
-                email: getFieldValue(leadData, 'email') || '',
-                phone: '', // Not in the required columns
-                source_link: '',
-                source_username: '',
-                company_name: selectedCompany.name, // Use selected company
-                enrichment_status: 'pending',
-                is_archived: false
-              };
-
-              // Create the lead via API
-              const response = await fetch(`${API_CONFIG.BASE_URL}/api/leads`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(newLead)
-              });
-
-              if (response.ok) {
-                const createdLead = await response.json();
-                successfulImports.push(createdLead);
-              }
-            } catch (error) {
-              console.error('Error creating lead:', error);
-            }
+          if (recipients.length === 0) {
+            throw new Error('No valid recipients found in file');
           }
 
-          // Update leads list with new imports
-          if (successfulImports.length > 0) {
-            setLeads(prevLeads => [...prevLeads, ...successfulImports]);
-            toast({
-              title: "Import Successful",
-              description: `Successfully imported ${successfulImports.length} leads`,
-            });
-          }
+          // Send to the direct campaign emails API
+          const emailPayload = {
+            campaign_id: selectedCampaignForImport.id,
+            recipients: recipients,
+            subject: campaign.subject_template,
+            body: campaign.body_template,
+            batch_size: 10,
+            cooldown_seconds: 10
+          };
 
-          // Close dialog and reset state
-          setShowImportDialog(false);
-          setImportFile(null);
-          setImportPreview([]);
-          
-        } catch (error) {
-          toast({
-            title: "Import Error",
-            description: "Failed to process the imported file",
-            variant: "destructive",
+          const emailResponse = await fetch(`${API_CONFIG.BASE_URL}/send_direct_campaign_emails`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(emailPayload)
           });
+
+          if (!emailResponse.ok) {
+            throw new Error(`Failed to send emails: ${emailResponse.status}`);
+          }
+
+          const emailResult = await emailResponse.json();
+
+          if (emailResult.success) {
+            toast({
+              title: "Success!",
+              description: `Successfully imported and started sending emails to ${recipients.length} leads`,
+            });
+            
+            // Close modal and reset state
+            setShowImportModal(false);
+            setImportFile(null);
+            setImportPreview([]);
+            setSelectedCampaignForImport(null);
+            
+          } else {
+            throw new Error(emailResult.message || 'Failed to send emails');
+          }
+
+        } catch (parseError) {
+          throw new Error(`File parsing failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
         }
       };
-      
+
       reader.readAsText(importFile);
-      
+
     } catch (error) {
+      console.error('Error in upload and send process:', error);
       toast({
-        title: "Import Error",
-        description: "Failed to import leads",
+        title: "Import failed",
+        description: error instanceof Error ? error.message : "Failed to import leads and send emails",
         variant: "destructive",
       });
     } finally {
@@ -2432,81 +2455,6 @@ Return ONLY the subject line without quotes or additional text.`;
     }
   };
 
-  const startCampaign = async (campaignId: string) => {
-    setStartingCampaign(campaignId);
-    try {
-      let response;
-      try {
-        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${campaignId}/send-emails`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-      } catch (networkError) {
-        // Handle network errors (CORS, connection failed, etc.)
-        console.warn('Network error starting campaign, using mock response:', networkError);
-        // Update campaign status locally in demo mode
-        setCampaigns(prev => prev.map(campaign => 
-          campaign.id === campaignId 
-            ? { ...campaign, status: 'running' as const }
-            : campaign
-        ));
-        toast({
-          title: "Demo Mode",
-          description: "Campaign started successfully (backend not available)",
-        });
-        setStartingCampaign(null);
-        return;
-      }
-
-      if (!response.ok) {
-        // If API is not available, update local state for development
-        if (response.status === 404 || response.status === 0) {
-          console.warn('Campaign start API not available, updating local state');
-          setCampaigns(prev => prev.map(campaign => 
-            campaign.id === campaignId 
-              ? { ...campaign, status: 'running' as const }
-              : campaign
-          ));
-          toast({
-            title: "Demo Mode",
-            description: "Campaign started successfully (API not available)",
-          });
-          setStartingCampaign(null);
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        // Update campaign status
-        setCampaigns(prev => prev.map(campaign => 
-          campaign.id === campaignId 
-            ? { ...campaign, status: 'running' as const }
-            : campaign
-        ));
-        toast({
-          title: "Campaign Started",
-          description: `Campaign emails are being sent. Sent: ${data.results?.sent_count || 0}, Failed: ${data.results?.failed_count || 0}`,
-        });
-      } else {
-        throw new Error(data.message || 'Failed to start campaign');
-      }
-    } catch (error) {
-      console.error('Error starting campaign:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to start campaign",
-        variant: "destructive",
-      });
-    } finally {
-      setStartingCampaign(null);
-    }
-  };
-
   const deleteCampaign = async (campaignId: string) => {
     if (!window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
       return;
@@ -2569,277 +2517,6 @@ Return ONLY the subject line without quotes or additional text.`;
       });
     } finally {
       setDeletingCampaign(null);
-    }
-  };
-
-  const handleAddLeadsToCampaign = async (campaignId: string) => {
-    if (!selectedLeads.length || !selectedCompany) {
-      toast({
-        title: "Error",
-        description: "Please select leads to add to the campaign",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setAddingLeads(true);
-    try {
-      let response;
-      try {
-        response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${campaignId}/leads`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            lead_ids: selectedLeads
-          })
-        });
-      } catch (networkError) {
-        // Handle network errors (CORS, connection failed, etc.)
-        console.warn('Network error adding leads to campaign, using mock response:', networkError);
-        toast({
-          title: "Demo Mode",
-          description: `Successfully added ${selectedLeads.length} leads to campaign (backend not available)`,
-        });
-        setShowAddLeadsDialog(false);
-        setSelectedCampaignToAddLeads(null);
-        setSelectedLeads([]);
-        setAddingLeads(false);
-        return;
-      }
-
-      if (!response.ok) {
-        // If API is not available, show success for development
-        if (response.status === 404 || response.status === 0) {
-          console.warn('Add leads to campaign API not available, showing success message');
-          toast({
-            title: "Demo Mode",
-            description: `Successfully added ${selectedLeads.length} leads to campaign (API not available)`,
-          });
-          setShowAddLeadsDialog(false);
-          setSelectedCampaignToAddLeads(null);
-          setSelectedLeads([]);
-          setAddingLeads(false);
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        toast({
-          title: "Success",
-          description: `Successfully added ${selectedLeads.length} leads to the campaign`,
-        });
-        
-        // Close dialog and reset state
-        setShowAddLeadsDialog(false);
-        setSelectedCampaignToAddLeads(null);
-        setSelectedLeads([]);
-        
-        // Refresh campaigns if needed
-        if (selectedCompany) {
-          fetchCampaigns(selectedCompany.id);
-        }
-      } else {
-        throw new Error(data.message || 'Failed to add leads to campaign');
-      }
-    } catch (error) {
-      console.error('Error adding leads to campaign:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add leads to campaign",
-        variant: "destructive",
-      });
-    } finally {
-      setAddingLeads(false);
-    }
-  };
-
-  const handleImportLeads = async (campaignId: string) => {
-    if (!importFile) {
-      toast({
-        title: "Error",
-        description: "Please select a file to import",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setImportingLeads(true);
-    try {
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          let leadsData: any[] = [];
-
-          if (importFile.name.endsWith('.json')) {
-            leadsData = JSON.parse(content);
-            if (!Array.isArray(leadsData)) {
-              throw new Error('JSON file must contain an array of leads');
-            }
-            
-            // Validate JSON format has required fields
-            const requiredFields = ['Fullname', 'email', 'id', 'position'];
-            const firstRecord = leadsData[0];
-            if (firstRecord) {
-              const missingFields = requiredFields.filter(field => 
-                !Object.keys(firstRecord).some(key => key.toLowerCase() === field.toLowerCase())
-              );
-              
-              if (missingFields.length > 0) {
-                throw new Error(`Missing required fields: ${missingFields.join(', ')}. Expected: Fullname, email, id, position`);
-              }
-            }
-          } else if (importFile.name.endsWith('.csv')) {
-            const lines = content.split('\n').filter(line => line.trim());
-            if (lines.length < 2) {
-              throw new Error('CSV file must have at least a header row and one data row');
-            }
-
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-            
-            // Validate required columns
-            const requiredColumns = ['Fullname', 'email', 'id', 'position'];
-            const missingColumns = requiredColumns.filter(col => 
-              !headers.some(header => header.toLowerCase() === col.toLowerCase())
-            );
-            
-            if (missingColumns.length > 0) {
-              throw new Error(`Missing required columns: ${missingColumns.join(', ')}. Expected: Fullname, email, id, position`);
-            }
-            
-            leadsData = lines.slice(1).map(line => {
-              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-              const obj: any = {};
-              headers.forEach((header, index) => {
-                obj[header] = values[index] || '';
-              });
-              return obj;
-            });
-          }
-
-          // Process and create leads
-          const successfulImports: Lead[] = [];
-          
-          for (const leadData of leadsData) {
-            try {
-              // Map the imported data to our Lead structure
-              // Expected columns: Fullname, email, id, position
-              const getFieldValue = (data: any, fieldName: string) => {
-                // Try exact match first, then case-insensitive
-                if (data[fieldName]) return data[fieldName];
-                const key = Object.keys(data).find(k => k.toLowerCase() === fieldName.toLowerCase());
-                return key ? data[key] : '';
-              };
-
-              const newLead = {
-                account_id: accountId,
-                company_id: selectedCompany!.id,
-                created_by: user.id,
-                name: getFieldValue(leadData, 'Fullname') || 'Unknown',
-                email: getFieldValue(leadData, 'email') || '',
-                phone: null, // Not in the required columns
-                location: null, // Not in the required columns
-                company_name: selectedCompany!.name, // Use selected company
-                industry: null, // Not in the required columns
-                website: null, // Not in the required columns
-                linkedin_profile: null, // Not in the required columns
-                notes: `Position: ${getFieldValue(leadData, 'position')}${getFieldValue(leadData, 'id') ? ` | ID: ${getFieldValue(leadData, 'id')}` : ''}`,
-                tags: getFieldValue(leadData, 'position') ? [getFieldValue(leadData, 'position')] : null
-              };
-
-              // Create the lead via API
-              const response = await fetch(`${API_CONFIG.BASE_URL}/api/leads`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(newLead)
-              });
-
-              if (response.ok) {
-                const createdLead = await response.json();
-                successfulImports.push(createdLead);
-              }
-            } catch (error) {
-              console.error('Error creating lead:', error);
-            }
-          }
-
-          // Add leads to campaign if any were created successfully
-          if (successfulImports.length > 0) {
-            const leadIds = successfulImports.map(lead => lead.id);
-            
-            try {
-              const response = await fetch(`${API_CONFIG.BASE_URL}/api/campaigns/${campaignId}/leads`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  lead_ids: leadIds
-                })
-              });
-
-              if (response.ok || response.status === 404) {
-                // Update leads list with new imports
-                setLeads(prevLeads => [...prevLeads, ...successfulImports]);
-                toast({
-                  title: "Import and Add Successful",
-                  description: `Successfully imported and added ${successfulImports.length} leads to the campaign`,
-                });
-                
-                // Close dialog and reset state
-                setShowAddLeadsDialog(false);
-                setImportFile(null);
-                setImportPreview([]);
-                
-                // Refresh campaigns if needed
-                if (selectedCompany) {
-                  fetchCampaigns(selectedCompany.id);
-                }
-              }
-            } catch (campaignError) {
-              console.warn('Error adding imported leads to campaign, but leads were created:', campaignError);
-              setLeads(prevLeads => [...prevLeads, ...successfulImports]);
-              toast({
-                title: "Partial Success",
-                description: `Imported ${successfulImports.length} leads successfully, but couldn't add them to campaign`,
-                variant: "destructive",
-              });
-            }
-          } else {
-            toast({
-              title: "Import Failed",
-              description: "No leads could be imported from the file",
-              variant: "destructive",
-            });
-          }
-          
-        } catch (error) {
-          toast({
-            title: "Import Error",
-            description: "Failed to process the imported file",
-            variant: "destructive",
-          });
-        }
-      };
-      
-      reader.readAsText(importFile);
-      
-    } catch (error) {
-      toast({
-        title: "Import Error",
-        description: "Failed to import leads",
-        variant: "destructive",
-      });
-    } finally {
-      setImportingLeads(false);
     }
   };
 
@@ -3255,39 +2932,17 @@ Return ONLY the subject line without quotes or additional text.`;
                             {campaign.status === "draft" && <Clock className="h-3 w-3" />}
                             {campaign.status}
                           </Badge>
-                          {campaign.status === "draft" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startCampaign(campaign.id);
-                              }}
-                              disabled={startingCampaign === campaign.id}
-                              className="h-8 px-3 text-green-600 hover:text-green-700 hover:bg-green-50"
-                            >
-                              {startingCampaign === campaign.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <Send className="h-3 w-3 mr-1" />
-                                  Start
-                                </>
-                              )}
-                            </Button>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedCampaignToAddLeads(campaign);
-                              setShowAddLeadsDialog(true);
+                              openImportModal(campaign);
                             }}
-                            className="h-8 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            className="h-8 px-3 backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 text-primary hover:text-primary-foreground"
                           >
-                            <UserPlus className="h-3 w-3 mr-1" />
-                            Add Leads
+                            <Upload className="h-3 w-3 mr-1" />
+                            Import
                           </Button>
                           <Button
                             variant="ghost"
@@ -3798,91 +3453,17 @@ Return ONLY the subject line without quotes or additional text.`;
                   </Button>
                   
                   <div className="flex gap-2">
-                    <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Import More Leads
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Import Leads</DialogTitle>
-                          <DialogDescription>
-                            Upload a CSV or JSON file containing lead data. Supported fields: name, email, phone, location, company_name, industry, website, linkedin_profile, notes, tags.
-                          </DialogDescription>
-                        </DialogHeader>
-                        
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="file-upload">Choose File</Label>
-                            <Input
-                              id="file-upload"
-                              type="file"
-                              accept=".csv,.json"
-                              onChange={handleFileUpload}
-                              className="mt-2"
-                            />
-                          </div>
-                          
-                          {importFile && (
-                            <div className="p-4 bg-muted rounded-lg">
-                              <p className="font-medium mb-2">File: {importFile.name}</p>
-                              <p className="text-sm text-muted-foreground mb-3">Size: {(importFile.size / 1024).toFixed(2)} KB</p>
-                              
-                              {importPreview.length > 0 && (
-                                <div>
-                                  <p className="font-medium mb-2">Preview (first 5 records):</p>
-                                  <div className="max-h-40 overflow-auto">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          {Object.keys(importPreview[0] || {}).map((key) => (
-                                            <TableHead key={key} className="text-xs">{key}</TableHead>
-                                          ))}
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {importPreview.map((record, index) => (
-                                          <TableRow key={index}>
-                                            {Object.values(record).map((value: any, valueIndex) => (
-                                              <TableCell key={valueIndex} className="text-xs">
-                                                {String(value).slice(0, 30)}
-                                                {String(value).length > 30 ? '...' : ''}
-                                              </TableCell>
-                                            ))}
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setShowImportDialog(false);
-                                setImportFile(null);
-                                setImportPreview([]);
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={processImportedLeads}
-                              disabled={!importFile || importingLeads}
-                            >
-                              {importingLeads && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                              Import Leads
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Import Leads",
+                          description: "Lead import functionality coming soon!",
+                        });
+                      }}
+                    >
+                      Import More Leads
+                    </Button>
                     
                     <Button 
                       onClick={() => {
@@ -4215,17 +3796,13 @@ Return ONLY the subject line without quotes or additional text.`;
                       }}
                     >
                       <CardContent className="p-0">
-                        {/* Template Preview HTML */}
-                        <div className="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg overflow-hidden border-b relative">
-                          <iframe
-                            srcDoc={template.htmlContent}
-                            className="w-full h-full border-0 transform scale-50 origin-top-left pointer-events-none"
-                            style={{ width: '200%', height: '200%' }}
-                            title={`${template.name} Preview`}
-                            sandbox="allow-same-origin"
-                            scrolling="no"
+                        {/* Template Preview Image */}
+                        <div className="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 rounded-t-lg flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={template.preview} 
+                            alt={template.name}
+                            className="w-full h-full object-cover"
                           />
-                          <div className="absolute inset-0 bg-transparent hover:bg-black/5 transition-colors cursor-pointer" />
                         </div>
                         
                         {/* Template Info */}
@@ -4305,62 +3882,13 @@ Return ONLY the subject line without quotes or additional text.`;
                         </TabsList>
                         
                         <TabsContent value="preview" className="space-y-4 mt-6">
-                          {/* Viewport Controls */}
-                          <div className="flex items-center justify-between bg-white/30 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-700">Preview Size:</span>
-                              <div className="flex gap-1">
-                                <Button
-                                  variant={previewViewport === 'desktop' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => setPreviewViewport('desktop')}
-                                  className="text-xs flex items-center gap-1"
-                                >
-                                  <Monitor className="h-3 w-3" />
-                                  Desktop
-                                </Button>
-                                <Button
-                                  variant={previewViewport === 'mobile' ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => setPreviewViewport('mobile')}
-                                  className="text-xs flex items-center gap-1"
-                                >
-                                  <Smartphone className="h-3 w-3" />
-                                  Mobile
-                                </Button>
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setIsFullscreenPreview(true)}
-                              className="flex items-center gap-1 text-xs bg-white/50 hover:bg-white/70"
-                            >
-                              <Maximize2 className="h-3 w-3" />
-                              Fullscreen
-                            </Button>
-                          </div>
-
                           <div className="border border-white/30 rounded-xl bg-white/20 backdrop-blur-sm p-4">
-                            <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full mx-auto" 
-                                 style={{ maxWidth: previewViewport === 'mobile' ? '375px' : '100%' }}>
-                              <div className="bg-gray-100 px-4 py-2 border-b flex items-center gap-2">
-                                <div className="flex gap-1">
-                                  <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                                  <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                                  <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                                </div>
-                                <span className="text-xs text-gray-600 ml-2">
-                                  Email Preview {previewViewport === 'mobile' ? '(Mobile)' : '(Desktop)'}
-                                </span>
-                              </div>
+                            <div className="bg-white rounded-lg shadow-sm overflow-hidden max-w-full">
                               <iframe
                                 srcDoc={selectedTemplate.htmlContent}
-                                className="w-full border-0"
-                                style={{ height: previewViewport === 'mobile' ? '500px' : '600px' }}
+                                className="w-full h-[500px] border-0 rounded-lg"
                                 title="Email Template Preview"
                                 sandbox="allow-same-origin"
-                                scrolling="auto"
                               />
                             </div>
                           </div>
@@ -4489,76 +4017,6 @@ Return ONLY the subject line without quotes or additional text.`;
                           </div>
                         </TabsContent>
                       </Tabs>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Fullscreen Preview Modal */}
-              {isFullscreenPreview && selectedTemplate && (
-                <div className="fixed inset-0 bg-black z-[60] flex flex-col">
-                  {/* Fullscreen Header */}
-                  <div className="bg-gray-900 text-white p-4 flex items-center justify-between border-b border-gray-700">
-                    <div>
-                      <h3 className="text-lg font-semibold">{selectedTemplate.name} - Fullscreen Preview</h3>
-                      <p className="text-sm text-gray-300">{selectedTemplate.category}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <Button
-                          variant={previewViewport === 'desktop' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPreviewViewport('desktop')}
-                          className="text-xs flex items-center gap-1"
-                        >
-                          <Monitor className="h-3 w-3" />
-                          Desktop
-                        </Button>
-                        <Button
-                          variant={previewViewport === 'mobile' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPreviewViewport('mobile')}
-                          className="text-xs flex items-center gap-1"
-                        >
-                          <Smartphone className="h-3 w-3" />
-                          Mobile
-                        </Button>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsFullscreenPreview(false)}
-                        className="text-white hover:bg-gray-800"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {/* Fullscreen Content */}
-                  <div className="flex-1 bg-gray-100 p-4 overflow-auto">
-                    <div className="h-full flex items-center justify-center">
-                      <div className="bg-white rounded-lg shadow-2xl overflow-hidden mx-auto" 
-                           style={{ maxWidth: previewViewport === 'mobile' ? '375px' : '800px', width: '100%' }}>
-                        <div className="bg-gray-200 px-4 py-2 border-b flex items-center gap-2">
-                          <div className="flex gap-1">
-                            <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                            <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                          </div>
-                          <span className="text-xs text-gray-600 ml-2">
-                            {selectedTemplate.name} - {previewViewport === 'mobile' ? 'Mobile' : 'Desktop'} View
-                          </span>
-                        </div>
-                        <iframe
-                          srcDoc={selectedTemplate.htmlContent}
-                          className="w-full border-0"
-                          style={{ height: 'calc(100vh - 120px)' }}
-                          title="Fullscreen Email Template Preview"
-                          sandbox="allow-same-origin"
-                          scrolling="auto"
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -4708,178 +4166,151 @@ Return ONLY the subject line without quotes or additional text.`;
           </CardContent>
         </Card>
       )}
+
+          {/* API Debug Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>API Debug Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <span className="font-medium">Account ID:</span> 
+                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
+                </div>
+                <div>
+                  <span className="font-medium">Companies Endpoint:</span> 
+                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
+                    GET {API_CONFIG.BASE_URL}/accounts/{accountId}/companies-with-banners
+                  </code>
+                </div>
+                <div>
+                  <span className="font-medium">Total Companies:</span> 
+                  <span className="ml-1">{companies.length}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Total Banners:</span> 
+                  <span className="ml-1">{companies.reduce((total, company) => total + company.banners.length, 0)}</span>
+                </div>
+                <div>
+                  <span className="font-medium">cURL Command:</span>
+                  <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`curl -X GET "${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners" \\
+  -H "Content-Type: application/json"`}
+                  </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
 
-      {/* Add Leads to Campaign Dialog */}
-      <Dialog open={showAddLeadsDialog} onOpenChange={setShowAddLeadsDialog}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Leads to Campaign</DialogTitle>
-            <DialogDescription>
-              {selectedCampaignToAddLeads && selectedCompany && (
-                <span>
-                  Add leads to "{selectedCampaignToAddLeads.name}" campaign for {selectedCompany.name}
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
+      {/* GlassUI Import Leads Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="sm:max-w-md border-0 bg-transparent shadow-none p-0">
+          {/* Glass UI Background */}
+          <div className="bg-gradient-to-br from-white/20 via-white/10 to-white/5 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl p-6 relative">
+          
+          {/* Custom Close Button */}
+          <button
+            onClick={() => setShowImportModal(false)}
+            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-gray-500 hover:text-gray-700"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </button>
+          
+          {/* Content */}
+          <div className="relative pr-8">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-2xl font-semibold text-gray-900 dark:text-white">
+                Import Leads for {selectedCampaignForImport?.name}
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-300">
+                Upload a <strong>CSV</strong> or <strong>JSON</strong> file.<br />
+                Required fields: <code className="bg-black/10 px-1 py-0.5 rounded text-xs">full_name</code>, <code className="bg-black/10 px-1 py-0.5 rounded text-xs">email</code>, <code className="bg-black/10 px-1 py-0.5 rounded text-xs">location</code>.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Import Section */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-medium mb-3">Import Leads from File</h4>
-              <div className="flex items-center gap-4">
+            <div className="mt-6 space-y-4">
+              {/* File Input */}
+              <div>
                 <Input
                   type="file"
                   accept=".csv,.json"
-                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                  className="flex-1"
+                  onChange={handleFileChange}
+                  className="w-full bg-white/10 border border-white/30 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 backdrop-blur-sm"
                 />
-                <Button
-                  onClick={() => {
-                    if (importFile && selectedCampaignToAddLeads) {
-                      handleImportLeads(selectedCampaignToAddLeads.id);
-                    }
-                  }}
-                  disabled={!importFile || importingLeads}
-                  className="min-w-[120px]"
-                >
-                  {importingLeads ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                  )}
-                  Import Leads
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Upload a CSV or JSON file with lead information. Required columns: Fullname, email, id, position
-              </p>
-            </div>
-
-            {/* Existing Leads Selection */}
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium">Select Existing Leads</h4>
-                <Button
-                  onClick={() => {
-                    if (selectedCompany) {
-                      fetchLeads(selectedCompany.id);
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                  disabled={loadingLeads}
-                >
-                  {loadingLeads ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Search className="h-4 w-4 mr-2" />
-                  )}
-                  Load Leads
-                </Button>
               </div>
 
-              {leads.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (selectedLeads.length === leads.length) {
-                          setSelectedLeads([]);
-                        } else {
-                          setSelectedLeads(leads.map(lead => lead.id));
-                        }
-                      }}
-                    >
-                      {selectedLeads.length === leads.length ? 'Deselect All' : 'Select All'}
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {selectedLeads.length} of {leads.length} leads selected
-                    </span>
-                  </div>
-
-                  <div className="max-h-60 overflow-y-auto border rounded">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">Select</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Company</TableHead>
-                          <TableHead>Phone</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {leads.map((lead) => (
-                          <TableRow key={lead.id}>
-                            <TableCell>
-                              <input
-                                type="checkbox"
-                                checked={selectedLeads.includes(lead.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedLeads(prev => [...prev, lead.id]);
-                                  } else {
-                                    setSelectedLeads(prev => prev.filter(id => id !== lead.id));
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium">{lead.full_name}</TableCell>
-                            <TableCell>{lead.email}</TableCell>
-                            <TableCell>{lead.company_name || '-'}</TableCell>
-                            <TableCell>{lead.phone || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowAddLeadsDialog(false);
-                        setSelectedCampaignToAddLeads(null);
-                        setSelectedLeads([]);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        if (selectedCampaignToAddLeads && selectedLeads.length > 0) {
-                          handleAddLeadsToCampaign(selectedCampaignToAddLeads.id);
-                        }
-                      }}
-                      disabled={selectedLeads.length === 0 || addingLeads}
-                    >
-                      {addingLeads ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <UserPlus className="h-4 w-4 mr-2" />
-                      )}
-                      Add {selectedLeads.length} Leads
-                    </Button>
+              {/* Preview */}
+              {importPreview.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Preview (First 5 leads):</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {importPreview.map((lead, index) => (
+                      <div key={index} className="text-xs bg-white/10 rounded p-2 border border-white/10">
+                        <div className="font-medium text-gray-900 dark:text-white">{lead.data.name}</div>
+                        <div className="text-gray-600 dark:text-gray-400">{lead.email}</div>
+                        {lead.data.location && (
+                          <div className="text-gray-500 dark:text-gray-500">{lead.data.location}</div>
+                        )}
+                        {lead.data.company && (
+                          <div className="text-gray-500 dark:text-gray-500">{lead.data.company}</div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium">No Leads Found</h3>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {selectedCompany && `No leads found for ${selectedCompany.name}.`}
-                    <br />
-                    Import leads from a file or create them manually.
+              )}
+
+              {/* File Info */}
+              {importFile && (
+                <div className="bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-500/20 p-3">
+                  <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                    <Upload className="h-4 w-4" />
+                    <span className="text-sm font-medium">File ready: {importFile.name}</span>
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    This will send emails using the campaign's templates to all valid leads.
                   </p>
                 </div>
               )}
             </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 mt-6">
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportPreview([]);
+                  setSelectedCampaignForImport(null);
+                }}
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={uploadAndSendLeads}
+                disabled={!importFile || importPreview.length === 0 || importingLeads}
+                className="bg-white/20 hover:bg-white/30 text-gray-900 dark:text-white border border-white/30 backdrop-blur-sm"
+              >
+                {importingLeads ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Upload & Send Emails
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
           </div>
         </DialogContent>
       </Dialog>

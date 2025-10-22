@@ -1,6 +1,6 @@
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: "https://3000-01k7vfa4m0cbp3ae8etn6ntexa.cloudspaces.litng.ai",
+  BASE_URL: "https://lead-backend-606436331032.europe-west1.run.app",
   ENDPOINTS: {
     SIGNUP: "/auth/signup",
     LOGIN: "/auth/login",
