@@ -113,31 +113,6 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Getting Started</CardTitle>
-          <CardDescription>Phase 1 Foundation</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm">✅ Multi-tenant authentication enabled</p>
-          <p className="text-sm">✅ Account ID stored for backend access</p>
-          <p className="text-sm">✅ User session management</p>
-          <p className="text-sm">✅ Company and banner management</p>
-          <p className="text-sm text-muted-foreground">⏳ GetLeads workflow (Phase 2)</p>
-          <p className="text-sm text-muted-foreground">⏳ Campaign management (Phase 2)</p>
-          <p className="text-sm text-muted-foreground">⏳ Social content generation (Phase 2)</p>
-          
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-md">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              🔑 Account ID Available
-            </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-              The account ID (<code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{accountId}</code>) is now stored and can be used for all backend API calls to access account-specific data.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

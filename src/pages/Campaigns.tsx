@@ -4167,41 +4167,6 @@ Return ONLY the subject line without quotes or additional text.`;
         </Card>
       )}
 
-          {/* API Debug Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>API Debug Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <span className="font-medium">Account ID:</span> 
-                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">{accountId}</code>
-                </div>
-                <div>
-                  <span className="font-medium">Companies Endpoint:</span> 
-                  <code className="ml-1 text-xs bg-muted px-1 py-0.5 rounded">
-                    GET {API_CONFIG.BASE_URL}/accounts/{accountId}/companies-with-banners
-                  </code>
-                </div>
-                <div>
-                  <span className="font-medium">Total Companies:</span> 
-                  <span className="ml-1">{companies.length}</span>
-                </div>
-                <div>
-                  <span className="font-medium">Total Banners:</span> 
-                  <span className="ml-1">{companies.reduce((total, company) => total + company.banners.length, 0)}</span>
-                </div>
-                <div>
-                  <span className="font-medium">cURL Command:</span>
-                  <pre className="mt-2 text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`curl -X GET "${API_CONFIG.BASE_URL}/accounts/${accountId}/companies-with-banners" \\
-  -H "Content-Type: application/json"`}
-                  </pre>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </>
       )}
 
