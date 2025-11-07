@@ -121,6 +121,7 @@ export default function Social() {
 
   // Gemini API configuration
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  
   if (!GEMINI_API_KEY) {
     console.error('VITE_GEMINI_API_KEY not found in environment variables');
   }
@@ -174,7 +175,7 @@ Return ONLY the modified content without any additional explanations or formatti
         - Include industry insights and professional value
         - Encourage meaningful discussions
         - Use 1-3 relevant hashtags
-        - Keep under 3000 characters`;
+        - Keep under 2000 characters`;
       case 'instagram':
         return `- Visual-first approach with engaging captions
         - Use storytelling and emotional connection
@@ -217,10 +218,97 @@ Return ONLY the modified content without any additional explanations or formatti
     }
   }, [accountId]);
 
-  // AI modification function
+  // Simple API test function for debugging
+  const testGeminiAPI = async () => {
+    console.log('🧪 Testing Gemini API directly...');
+    try {
+      const requestBody = {
+        contents: [{
+          parts: [{
+            text: "Write a simple hello world message for LinkedIn"
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        }
+      };
+
+      console.log('Test API URL:', GEMINI_API_URL);
+      console.log('Test Request:', JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(GEMINI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('Test Response Status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Test Response:', data);
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        toast.success(`✅ API Test Successful! Generated: ${content?.substring(0, 50)}...`);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Test Failed:', errorText);
+        toast.error(`❌ API Test Failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Test Error:', error);
+      toast.error(`❌ Test Error: ${error.message}`);
+    }
+  };
+
+  // Helper function to parse API error messages
+  const parseGeminiError = (errorText: string) => {
+    try {
+      const errorObj = JSON.parse(errorText);
+      const error = errorObj.error;
+      
+      if (error?.code === 429) {
+        return {
+          type: 'QUOTA_EXCEEDED',
+          message: 'API quota exceeded. Please check your Gemini API configuration.',
+          details: error.message || 'Rate limit exceeded'
+        };
+      } else if (error?.code === 400) {
+        return {
+          type: 'BAD_REQUEST',
+          message: 'Invalid request to Gemini API',
+          details: error.message || 'Bad request'
+        };
+      } else if (error?.code === 403) {
+        return {
+          type: 'FORBIDDEN',
+          message: 'API key invalid or project access denied',
+          details: error.message || 'Forbidden'
+        };
+      } else {
+        return {
+          type: 'API_ERROR',
+          message: error.message || 'Unknown API error',
+          details: errorText
+        };
+      }
+    } catch {
+      return {
+        type: 'NETWORK_ERROR',
+        message: 'Network or parsing error',
+        details: errorText
+      };
+    }
+  };
+
+  // AI modification function with improved error handling (matching Python implementation)
   const modifyPostWithAI = async () => {
     if (!modifyingPost || !GEMINI_API_KEY) {
-      toast.error('Configuration error: Unable to modify content');
+      toast.error('Configuration error: Gemini API key not configured');
       return;
     }
 
@@ -240,28 +328,74 @@ Return ONLY the modified content without any additional explanations or formatti
         fullPrompt = `${systemPrompt}\n\nOriginal content:\n${modifyingPost.content}\n\nModification instructions: ${customModifyPrompt}`;
       }
 
+      // Match the exact request structure from working Python code
       const requestBody = {
         contents: [{
           parts: [{
             text: fullPrompt
           }]
-        }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        }
       };
 
-      console.log('Making AI modification request to:', GEMINI_API_URL);
+      console.log('Making AI modification request to Gemini API...');
+      console.log('API URL:', GEMINI_API_URL);
+      console.log('API Key configured:', !!GEMINI_API_KEY);
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+      // Add timeout and signal for better control (matching Python timeout=30)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await fetch(GEMINI_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('AI modification API Error:', errorText);
-        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+        
+        const parsedError = parseGeminiError(errorText);
+        
+        // Show specific error messages based on error type
+        switch (parsedError.type) {
+          case 'QUOTA_EXCEEDED':
+            toast.error('🚫 Gemini API quota exceeded! Please check your Google AI Studio settings and ensure billing is enabled.', {
+              duration: 8000
+            });
+            break;
+          case 'FORBIDDEN':
+            toast.error('🔑 Invalid API key or access denied. Please check your Gemini API key configuration.', {
+              duration: 6000
+            });
+            break;
+          case 'BAD_REQUEST':
+            toast.error('❌ Invalid request format. Please try again.', {
+              duration: 4000
+            });
+            break;
+          default:
+            toast.error(`🔧 API Error: ${parsedError.message}`, {
+              duration: 6000
+            });
+        }
+        
+        throw new Error(`${parsedError.type}: ${parsedError.details}`);
       }
 
       const data = await response.json();
@@ -277,17 +411,25 @@ Return ONLY the modified content without any additional explanations or formatti
           [postKey]: modifiedContent
         }));
         
-        toast.success(`Content ${modifyType === 'humanize' ? 'humanized' : 'modified'} successfully!`);
+        toast.success(`✨ Content ${modifyType === 'humanize' ? 'humanized' : 'modified'} successfully!`);
         setShowModifyDialog(false);
         setCustomModifyPrompt('');
         setModifyingPost(null);
       } else {
         console.error('No content in AI response:', data);
+        toast.error('No content was generated. The API returned an empty response.');
         throw new Error('No modified content generated - API returned empty response');
       }
     } catch (error) {
       console.error('Error modifying content with AI:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to modify content. Please try again.");
+      
+      if (error.name === 'AbortError') {
+        toast.error('⏱️ Request timeout. Please try again.');
+      } else if (!error.message.includes('QUOTA_EXCEEDED') && 
+          !error.message.includes('FORBIDDEN') && 
+          !error.message.includes('BAD_REQUEST')) {
+        toast.error('Network error or unexpected issue. Please try again.');
+      }
     } finally {
       setAiModifying(false);
     }
@@ -384,39 +526,140 @@ Return ONLY the modified content without any additional explanations or formatti
     if (!selectedCompany || !selectedBanner) return;
 
     try {
-      const payload = {
-        account_id: accountId,
-        company_id: selectedCompany.id,
-        platform: formData.platform,
-        query: formData.query,
-        company_banner_id: formData.company_banner_id || selectedBanner.id,
-        requested_by: user?.id,
-        include_past: formData.include_past
+      toast.info('🚀 Generating content directly with Gemini...');
+      
+      // Create content prompt similar to Python script
+      const prompt = `You are an expert social media content creator. Generate engaging ${formData.platform} content based on the following requirements:
+
+Platform: ${formData.platform}
+Content Request: ${formData.query}
+Company: ${selectedCompany.name}
+Banner: ${selectedBanner.name}
+
+Platform Guidelines for ${formData.platform}:
+${getPlatformSpecificGuidelines(formData.platform)}
+
+Please generate 3 different post variations with the following structure:
+- Title (if applicable for platform)
+- Main content/caption
+- Relevant hashtags
+- Call-to-action
+
+Return the response in JSON format with this structure:
+{
+  "posts": [
+    {
+      "title": "Post title (if applicable)",
+      "content": "Main post content",
+      "caption": "Caption (if different from content)",
+      "hashtags": ["#hashtag1", "#hashtag2"],
+      "call_to_action": "Specific call to action",
+      "post_type": "promotional/educational/engaging"
+    }
+  ]
+}
+
+Make sure each post is unique, engaging, and optimized for ${formData.platform}.`;
+
+      const requestBody = {
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        }
       };
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/social-generate`, {
+      console.log('Direct Gemini generation request:', requestBody);
+
+      const response = await fetch(GEMINI_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(requestBody)
       });
 
       if (response.ok) {
         const data = await response.json();
-        toast.success(`Successfully generated ${formData.platform} content!`);
-        setIsGenerateDialogOpen(false);
-        resetForm();
-        // Refresh generations for this company
-        fetchGenerations(selectedCompany.id);
-        setView('generations');
+        console.log('Direct Gemini response:', data);
+        
+        const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (generatedText) {
+          // Try to parse JSON from generated text
+          try {
+            let cleanText = generatedText.trim(); // Fixed: .strip() -> .trim()
+            if (cleanText.startsWith('```json')) {
+              cleanText = cleanText.substring(7);
+            }
+            if (cleanText.endsWith('```')) {
+              cleanText = cleanText.slice(0, -3);
+            }
+            
+            const parsedContent = JSON.parse(cleanText.trim());
+            
+            // Create a mock generation object
+            const mockGeneration = {
+              id: `direct-${Date.now()}`,
+              account_id: accountId,
+              company_id: selectedCompany.id,
+              platform: formData.platform,
+              query: formData.query,
+              status: 'completed',
+              generated_posts: parsedContent,
+              created_at: new Date().toISOString(),
+              completed_at: new Date().toISOString()
+            };
+            
+            setSelectedGeneration(mockGeneration);
+            setView('generation-detail');
+            toast.success(`✅ Successfully generated ${formData.platform} content directly!`);
+            
+          } catch (jsonError) {
+            console.error('Failed to parse JSON:', jsonError);
+            // Fallback: create simple post structure
+            const fallbackGeneration = {
+              id: `direct-${Date.now()}`,
+              account_id: accountId,
+              company_id: selectedCompany.id,
+              platform: formData.platform,
+              query: formData.query,
+              status: 'completed',
+              generated_posts: {
+                posts: [{
+                  title: "Generated Content",
+                  content: generatedText,
+                  caption: "",
+                  hashtags: [],
+                  call_to_action: "",
+                  post_type: "generated"
+                }]
+              },
+              created_at: new Date().toISOString(),
+              completed_at: new Date().toISOString()
+            };
+            
+            setSelectedGeneration(fallbackGeneration);
+            setView('generation-detail');
+            toast.success(`✅ Content generated successfully!`);
+          }
+        } else {
+          toast.error('❌ No content generated by Gemini');
+        }
       } else {
         const errorData = await response.json();
-        toast.error(errorData.message || 'Failed to generate content');
+        console.error('Direct Gemini error:', errorData);
+        toast.error(`❌ Gemini API Error: ${response.status}`);
       }
     } catch (error) {
       console.error('Error generating content:', error);
-      toast.error('Network error. Please try again.');
+      toast.error('❌ Network error. Please try again.');
     }
   };
 
@@ -598,14 +841,39 @@ Return ONLY the modified content without any additional explanations or formatti
             </div>
           )}
 
-          {/* API Key Warning */}
-          {!GEMINI_API_KEY && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                ⚠️ Gemini API key not configured. Please check your environment variables.
-              </p>
-            </div>
-          )}
+          {/* API Key Warning and Status */}
+          <div className="space-y-2">
+            {!GEMINI_API_KEY ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <XCircle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-medium text-red-800">Gemini API Not Configured</span>
+                </div>
+                <p className="text-sm text-red-700">
+                  API key not found in environment variables. Please add VITE_GEMINI_API_KEY to your .env file.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Gemini API Configured</span>
+                </div>
+                <p className="text-sm text-blue-700">
+                  API key found. If you're getting quota errors, please check your Google AI Studio billing settings.
+                </p>
+                <div className="mt-2 text-xs text-blue-600">
+                  <p>Troubleshooting quota issues:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Visit <a href="https://makersuite.google.com/" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a></li>
+                    <li>Ensure billing is enabled for your project</li>
+                    <li>Check that free tier limits haven't been exceeded</li>
+                    <li>Wait a few minutes and try again</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="flex gap-2">
@@ -657,20 +925,31 @@ Return ONLY the modified content without any additional explanations or formatti
           <h1 className="text-3xl font-bold">Social Content Generator</h1>
           <p className="text-muted-foreground">Generate AI-powered social media content</p>
         </div>
-        {view !== 'companies' && (
-          <Button variant="outline" onClick={() => {
-            if (view === 'generation-detail') {
-              setView('generations');
-            } else if (view === 'generations') {
-              setView('companies');
-            } else {
-              setView('companies');
-            }
-          }}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+        <div className="flex gap-2">
+          {/* Debug API Test Button */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={testGeminiAPI}
+            className="text-xs"
+          >
+            🧪 Test API
           </Button>
-        )}
+          {view !== 'companies' && (
+            <Button variant="outline" onClick={() => {
+              if (view === 'generation-detail') {
+                setView('generations');
+              } else if (view === 'generations') {
+                setView('companies');
+              } else {
+                setView('companies');
+              }
+            }}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          )}
+        </div>
       </div>
       
       <Card className="mt-4">
@@ -684,6 +963,12 @@ Return ONLY the modified content without any additional explanations or formatti
             <div className="flex items-center gap-2">
               <span className="font-medium">Created By:</span>
               <code className="bg-muted px-1 py-0.5 rounded text-xs">{user?.id}</code>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Gemini API:</span>
+              <Badge variant={GEMINI_API_KEY ? "default" : "destructive"} className="text-xs">
+                {GEMINI_API_KEY ? "✅ Configured" : "❌ Missing"}
+              </Badge>
             </div>
           </div>
         </CardContent>
